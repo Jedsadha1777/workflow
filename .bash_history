@@ -69,3 +69,20 @@ php artisan optimize:clear
 php artisan optimize:clear
 php artisan optimize:clear
 exit
+php artisan make:migration add_department_to_users_table --table=users
+php artisan make:migration create_documents_table
+php artisan make:migration create_departments_tabl
+php artisan migrate
+php artisan db:seed
+php artisan db:seed
+clear
+php artisan db:seed
+php artisan make:migration create_departments_table
+php artisan make:migration add_department_id_to_users_table --table=users
+php artisan make:migration add_department_id_to_documents_table --table=documents
+php artisan make:migration remove_old_department_columns
+php artisan migrate
+php artisan migrate
+php artisan db:seed
+php artisan optimize:clear
+exit

@@ -6,6 +6,8 @@ use App\Enums\UserRole;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -18,6 +20,7 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'role',
+        'department_id',
     ];
 
     protected $hidden = [
@@ -36,7 +39,6 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-       
         if ($panel->getId() === 'admin') {
             return $this->isAdmin();
         }
@@ -56,5 +58,20 @@ class User extends Authenticatable implements FilamentUser
     public function isUser(): bool
     {
         return in_array($this->role->value, UserRole::userRoles());
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class, 'creator_id');
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(DocumentApprover::class, 'approver_id');
     }
 }

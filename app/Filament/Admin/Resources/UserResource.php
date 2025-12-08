@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Hash;
 
 class UserResource extends Resource
 {
-    protected static ?string$model = User::class;
+    protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
@@ -29,6 +29,12 @@ class UserResource extends Resource
                         fn ($role) => [$role->value => $role->label()]
                     ))
                     ->required(),
+                Forms\Components\Select::make('department_id')
+                    ->label('Department')
+                    ->relationship('department', 'name')
+                    ->required()
+                    ->searchable()
+                    ->preload(),
                 Forms\Components\TextInput::make('password')
                     ->password()
                     ->dehydrateStateUsing(fn ($state) => Hash::make($state))
@@ -46,6 +52,9 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('role')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state->label()),
+                Tables\Columns\TextColumn::make('department.name')
+                    ->label('Department')
+                    ->searchable(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
