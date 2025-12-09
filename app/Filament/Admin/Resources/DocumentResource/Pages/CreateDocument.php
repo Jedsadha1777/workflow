@@ -22,12 +22,14 @@ class CreateDocument extends CreateRecord
     {
         $approversData = $this->form->getRawState()['approvers'] ?? [];
         
-        foreach ($approversData as $index => $approver) {
-            if (isset($approver['approver_id'])) {
+        $stepOrder = 1;
+        foreach ($approversData as $approver) {
+            if (is_array($approver) && isset($approver['approver_id']) && !empty($approver['approver_id'])) {
                 $this->record->approvers()->create([
                     'approver_id' => $approver['approver_id'],
-                    'step_order' => $index + 1,
+                    'step_order' => $stepOrder,
                 ]);
+                $stepOrder++;
             }
         }
     }

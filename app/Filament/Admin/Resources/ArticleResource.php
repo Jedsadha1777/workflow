@@ -38,6 +38,9 @@ class ArticleResource extends Resource
 
                 Forms\Components\RichEditor::make('content')
                     ->required()
+                    ->fileAttachmentsDisk('public')
+                    ->fileAttachmentsDirectory('articles')
+                    ->fileAttachmentsVisibility('public')
                     ->columnSpanFull(),
 
                 Forms\Components\Toggle::make('is_published')
@@ -60,7 +63,7 @@ class ArticleResource extends Resource
                 Tables\Columns\IconColumn::make('is_published')->boolean(),
                 Tables\Columns\TextColumn::make('published_at')->dateTime(),
             ])
-            ->filters([
+            ->filters([ 
                 Tables\Filters\TernaryFilter::make('is_published'),
             ])
             ->actions([

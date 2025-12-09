@@ -40,9 +40,6 @@ class ArticleResource extends Resource
                 Tables\Columns\TextColumn::make('author.name'),
                 Tables\Columns\TextColumn::make('published_at')->dateTime(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-            ])
             ->modifyQueryUsing(fn ($query) => $query->where('is_published', true));
     }
 

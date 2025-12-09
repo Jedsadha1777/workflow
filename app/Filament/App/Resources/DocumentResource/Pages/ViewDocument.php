@@ -9,6 +9,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewDocument extends ViewRecord
@@ -78,7 +79,9 @@ class ViewDocument extends ViewRecord
             $actions[] = Actions\Action::make('approve')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->requiresConfirmation()
+                ->modalHeading('Approve Document')
+                ->modalDescription('Are you sure you want to approve this document?')
+                ->modalSubmitActionLabel('Approve')
                 ->form([
                     Forms\Components\Textarea::make('comment')
                         ->label('Comment (Optional)')
@@ -100,18 +103,34 @@ class ViewDocument extends ViewRecord
                         $this->record->update([
                             'current_step' => $nextStep,
                         ]);
+                        
+                        Notification::make()
+                            ->success()
+                            ->title('Document Approved')
+                            ->body('The document has been approved and sent to the next approver.')
+                            ->send();
                     } else {
                         $this->record->update([
                             'status' => DocumentStatus::APPROVED,
                             'approved_at' => now(),
                         ]);
+                        
+                        Notification::make()
+                            ->success()
+                            ->title('Document Fully Approved')
+                            ->body('The document has been approved by all approvers.')
+                            ->send();
                     }
+                    
+                    return redirect($this->getResource()::getUrl('index'));
                 });
 
             $actions[] = Actions\Action::make('reject')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->requiresConfirmation()
+                ->modalHeading('Reject Document')
+                ->modalDescription('Are you sure you want to reject this document?')
+                ->modalSubmitActionLabel('Reject')
                 ->form([
                     Forms\Components\Textarea::make('comment')
                         ->label('Reason for Rejection')
@@ -129,8 +148,22 @@ class ViewDocument extends ViewRecord
                         'status' => DocumentStatus::REJECTED,
                         'current_step' => 0,
                     ]);
+                    
+                    Notification::make()
+                        ->danger()
+                        ->title('Document Rejected')
+                        ->body('The document has been rejected and returned to the creator.')
+                        ->send();
+                    
+                    return redirect($this->getResource()::getUrl('index'));
                 });
         }
+        
+        $actions[] = Actions\Action::make('back')
+            ->label('Return to List')
+            ->icon('heroicon-o-arrow-left')
+            ->color('gray')
+            ->url($this->getResource()::getUrl('index'));
 
         return $actions;
     }

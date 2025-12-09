@@ -26,12 +26,12 @@ class DocumentResource extends Resource
             ->schema([
                 Forms\Components\TextInput::make('title')
                     ->required()
-                    ->disabled(fn ($record) => $record && !$record->canBeEditedBy(auth()->user())),
-                    
+                    ->disabled(fn($record) => $record && !$record->canBeEditedBy(auth()->user())),
+
                 Forms\Components\Textarea::make('content')
                     ->required()
                     ->rows(5)
-                    ->disabled(fn ($record) => $record && !$record->canBeEditedBy(auth()->user())),
+                    ->disabled(fn($record) => $record && !$record->canBeEditedBy(auth()->user())),
 
                 Forms\Components\Repeater::make('approvers')
                     ->relationship('approvers')
@@ -48,22 +48,22 @@ class DocumentResource extends Resource
                                 if (!$record) {
                                     return false;
                                 }
-                                
+
                                 $user = auth()->user();
-                                
+
                                 if ($user->isAdmin()) {
                                     return false;
                                 }
 
                                 return !$record->canBeChangedBy($user);
                             }),
-                        
+
                         Forms\Components\Hidden::make('step_order')
-                            ->default(fn ($get, $livewire) => $livewire->data['approvers'] ? count($livewire->data['approvers']) : 1),
+                            ->default(fn($get, $livewire) => $livewire->data['approvers'] ? count($livewire->data['approvers']) : 1),
                     ])
                     ->orderColumn('step_order')
                     ->defaultItems(0)
-                    ->disabled(fn ($record) => $record && $record->status !== DocumentStatus::DRAFT && !auth()->user()->isAdmin())
+                    ->disabled(fn($record) => $record && $record->status !== DocumentStatus::DRAFT && !auth()->user()->isAdmin())
                     ->columnSpanFull(),
 
                 Forms\Components\Hidden::make('creator_id')
@@ -85,7 +85,7 @@ class DocumentResource extends Resource
                     ->label('Department'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn ($state) => $state->color()),
+                    ->color(fn($state) => $state->color()),
                 Tables\Columns\TextColumn::make('created_at')->dateTime(),
             ])
             ->filters([
@@ -95,7 +95,7 @@ class DocumentResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
-                    ->visible(fn ($record) => $record->canBeEditedBy(auth()->user())),
+                    ->visible(fn($record) => $record->canBeEditedBy(auth()->user())),
                 Tables\Actions\Action::make('submit')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
@@ -107,20 +107,25 @@ class DocumentResource extends Resource
                             'current_step' => 1,
                         ]);
                     })
-                    ->visible(fn ($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
+                    ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
             ])
             ->modifyQueryUsing(function (Builder $query) {
                 $user = auth()->user();
-                
+
                 if ($user->isAdmin()) {
                     return $query;
                 }
 
                 return $query->where(function ($q) use ($user) {
                     $q->where('creator_id', $user->id)
-                        ->orWhere('department_id', $user->department_id)
+                        ->orWhere(function ($q) use ($user) {
+                            $q->where('department_id', $user->department_id)
+                                ->where('status', DocumentStatus::DRAFT);
+                        })
                         ->orWhereHas('approvers', function ($q) use ($user) {
-                            $q->where('approver_id', $user->id);
+                            $q->where('approver_id', $user->id)
+                                ->where('status', ApprovalStatus::PENDING)
+                                ->whereColumn('step_order', 'documents.current_step');
                         });
                 });
             });
