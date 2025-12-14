@@ -86,3 +86,38 @@ php artisan migrate
 php artisan db:seed
 php artisan optimize:clear
 exit
+php artisan migrate
+tail -f laravel.log
+ls
+cd st
+cd storage
+ls
+cd logs
+ls
+tail -f laravel.log
+cd ..
+cd ..
+php artsan optimize
+php artisan optimize
+tail -f storage/logs/laravel.log
+composer require phpoffice/phpspreadsheet
+php artisan migrate
+php artisan config:clear
+php artisan route:clear
+php artisan cache:clear
+php artisan filament:cache-components
+docker exec -it workflow_laravel php artisan storage:link
+exit
+ls -la /var/www/storage/app/public/templates/
+ls -la /var/www/public/storage
+ls -la /var/www/storage/app/public/
+rm /var/www/public/storage
+ln -s /var/www/storage/app/public /var/www/public/storage
+ls -la /var/www/public/storage
+mkdir -p resources/views/filament/forms
+git status
+git add
+git add .
+git push cimmit -m "Fixd dragdrop"
+git commit -m "fixed dragdrop"
+exit

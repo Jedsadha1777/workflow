@@ -58,10 +58,11 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Throwable $e)
     {
-        // จัดการ 403 error เฉพาะเจาะจง
-        if ($e instanceof HttpException && $e->getStatusCode() === 403) {
-            return response()->view('errors.403', [], 403);
-        }
+        // // จัดการ 403 error เฉพาะเจาะจง
+        // if ($e instanceof HttpException && $e->getStatusCode() === 403) {
+        //     return response()->view('errors.403', [], 403);
+        // }
+        
 
         return parent::render($request, $e);
     }
