@@ -149,277 +149,34 @@ function initLuckysheetEditor(wrapperId, config) {
         let originalStyle = "";
         const fullscreenBtn = document.getElementById(fullscreenBtnId);
         let sidebarMenu = null;
-        let draggedField = null;
 
-        function createFormFieldButton(label, shortcode) {
+        function createFormFieldButton(label, fieldType) {
             const btn = document.createElement("button");
             btn.className = "form-field-btn";
             btn.textContent = label;
-            btn.draggable = true;
-            btn.dataset.shortcode = shortcode;
-            btn.addEventListener("dragstart", function(e) {
-                draggedField = shortcode;
-                e.dataTransfer.effectAllowed = "copy";
-            });
-            btn.addEventListener("dragend", function(e) {
-                draggedField = null;
-            });
+            btn.onclick = function() {
+                insertField(fieldType);
+            };
             return btn;
         }
 
-        function setupDropZone() {
-            const container = document.getElementById(containerId);
-            const lucksheetContainer = container.querySelector('#luckysheet-cell-main');
-            if (!lucksheetContainer) return;
-
-            let highlightOverlay = document.createElement('div');
-            highlightOverlay.id = 'drop-highlight-' + containerId;
-            highlightOverlay.style.cssText = 'position:absolute;border:2px solid #2563EB;background:rgba(37,99,235,0.1);pointer-events:none;display:none;z-index:1000;';
-            lucksheetContainer.appendChild(highlightOverlay);
-
-            let lastRow = -1;
-            let lastCol = -1;
-
-            function getCellFromPoint(x, y) {
-                // ซ่อน highlight overlay ชั่วคราวเพื่อไม่ให้บัง
-                highlightOverlay.style.display = 'none';
-                
-                // ใช้ DOM เพื่อหา cell ที่ตำแหน่ง x, y
-                const scrollContainer = lucksheetContainer.querySelector('#luckysheet-cell-main');
-                if (!scrollContainer) return null;
-
-                // หา element ที่ตำแหน่งนี้
-                const elements = document.elementsFromPoint(
-                    lucksheetContainer.getBoundingClientRect().left + x - lucksheetContainer.scrollLeft,
-                    lucksheetContainer.getBoundingClientRect().top + y - lucksheetContainer.scrollTop
-                );
-
-                let cellElement = null;
-                for (let el of elements) {
-                    // หา cell element (luckysheet-cell-element)
-                    if (el.classList && el.classList.contains('luckysheet-cell-element')) {
-                        cellElement = el;
-                        break;
-                    }
-                }
-
-                if (!cellElement) return null;
-
-                // ดึง row, col จาก attribute
-                const row = parseInt(cellElement.getAttribute('data-row') || cellElement.getAttribute('r'));
-                const col = parseInt(cellElement.getAttribute('data-col') || cellElement.getAttribute('c'));
-
-                if (isNaN(row) || isNaN(col)) return null;
-
-                // ดึง position และ dimension จาก DOM
-                const rect = cellElement.getBoundingClientRect();
-                const containerRect = lucksheetContainer.getBoundingClientRect();
-
-                return {
-                    row: row,
-                    col: col,
-                    x: rect.left - containerRect.left + lucksheetContainer.scrollLeft,
-                    y: rect.top - containerRect.top + lucksheetContainer.scrollTop,
-                    width: rect.width,
-                    height: rect.height
-                };
+        function insertField(fieldType) {
+            const range = luckysheet.getRange();
+            if (!range || range.length === 0) {
+                alert('Please select a cell first');
+                return;
             }
 
-            function getCellPosition(x, y) {
-                // วิธีที่ 1: ลองใช้ elementsFromPoint
-                const cellData = getCellFromPoint(x, y);
-                if (cellData) return cellData;
+            const selection = range[0];
+            const row = selection.row[0];
+            const col = selection.column[0];
+            const rowEnd = selection.row[1];
+            const colEnd = selection.column[1];
 
-                // วิธีที่ 2: คำนวณจาก config แต่ใช้ค่าจริง
-                const flowdata = luckysheet.getSheetData();
-                if (!flowdata || flowdata.length === 0) return null;
-
-                const config = luckysheet.getConfig();
-                const merge = config.merge || {};
-                const rowlen = config.rowlen || {};
-                const columnlen = config.columnlen || {};
-
-                // ใช้ค่า default จริงๆ ของ Luckysheet
-                const defaultRowHeight = config.defaultRowHeight || 19;
-                const defaultColWidth = config.defaultColWidth || 73;
-
-                function buildMergeLookup(merge) {
-                    const lookup = {};
-                    Object.keys(merge).forEach(key => {
-                        const m = merge[key];
-                        const cellKey = m.r + '_' + m.c;
-                        lookup[cellKey] = m;
-                    });
-                    return lookup;
-                }
-
-                const mergeLookup = buildMergeLookup(merge);
-                const skipCells = {};
-
-                Object.keys(mergeLookup).forEach(key => {
-                    const m = mergeLookup[key];
-                    for (let mr = m.r; mr < m.r + m.rs; mr++) {
-                        for (let mc = m.c; mc < m.c + m.cs; mc++) {
-                            if (mr !== m.r || mc !== m.c) {
-                                skipCells[mr + '_' + mc] = true;
-                            }
-                        }
-                    }
-                });
-
-                let row_index = -1;
-                let currentY = 0;
-                for (let r = 0; r < flowdata.length; r++) {
-                    const height = rowlen[r] !== undefined ? rowlen[r] : defaultRowHeight;
-                    if (y >= currentY && y < currentY + height) {
-                        row_index = r;
-                        break;
-                    }
-                    currentY += height;
-                }
-
-                if (row_index === -1) return null;
-
-                let col_index = -1;
-                let currentX = 0;
-                const maxCols = Math.max(...flowdata.map(row => row ? row.length : 0));
-                
-                for (let c = 0; c < maxCols; c++) {
-                    const cellKey = row_index + '_' + c;
-                    
-                    if (skipCells[cellKey]) {
-                        continue;
-                    }
-
-                    const width = columnlen[c] !== undefined ? columnlen[c] : defaultColWidth;
-                    const mergeInfo = mergeLookup[cellKey];
-                    let totalWidth = width;
-                    
-                    if (mergeInfo) {
-                        totalWidth = 0;
-                        for (let mc = c; mc < c + mergeInfo.cs; mc++) {
-                            totalWidth += columnlen[mc] !== undefined ? columnlen[mc] : defaultColWidth;
-                        }
-                    }
-                    
-                    if (x >= currentX && x < currentX + totalWidth) {
-                        col_index = c;
-                        break;
-                    }
-                    
-                    currentX += totalWidth;
-                }
-
-                if (col_index === -1) return null;
-
-                const cellKey = row_index + '_' + col_index;
-                const mergeInfo = mergeLookup[cellKey];
-                
-                let cellX = 0;
-                for (let c = 0; c < col_index; c++) {
-                    const skipKey = row_index + '_' + c;
-                    if (!skipCells[skipKey]) {
-                        const checkMerge = mergeLookup[row_index + '_' + c];
-                        if (checkMerge) {
-                            for (let mc = c; mc < c + checkMerge.cs; mc++) {
-                                cellX += columnlen[mc] !== undefined ? columnlen[mc] : defaultColWidth;
-                            }
-                        } else {
-                            cellX += columnlen[c] !== undefined ? columnlen[c] : defaultColWidth;
-                        }
-                    }
-                }
-
-                let cellY = 0;
-                for (let r = 0; r < row_index; r++) {
-                    cellY += rowlen[r] !== undefined ? rowlen[r] : defaultRowHeight;
-                }
-
-                let cellWidth = columnlen[col_index] !== undefined ? columnlen[col_index] : defaultColWidth;
-                let cellHeight = rowlen[row_index] !== undefined ? rowlen[row_index] : defaultRowHeight;
-
-                if (mergeInfo) {
-                    cellWidth = 0;
-                    for (let mc = col_index; mc < col_index + mergeInfo.cs; mc++) {
-                        cellWidth += columnlen[mc] !== undefined ? columnlen[mc] : defaultColWidth;
-                    }
-                    cellHeight = 0;
-                    for (let mr = row_index; mr < row_index + mergeInfo.rs; mr++) {
-                        cellHeight += rowlen[mr] !== undefined ? rowlen[mr] : defaultRowHeight;
-                    }
-                }
-
-                return {
-                    row: row_index,
-                    col: col_index,
-                    x: cellX,
-                    y: cellY,
-                    width: cellWidth,
-                    height: cellHeight
-                };
-            }
-
-            lucksheetContainer.addEventListener("dragover", function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "copy";
-
-                const rect = lucksheetContainer.getBoundingClientRect();
-                const scrollLeft = lucksheetContainer.scrollLeft;
-                const scrollTop = lucksheetContainer.scrollTop;
-                
-                const x = e.clientX - rect.left + scrollLeft;
-                const y = e.clientY - rect.top + scrollTop;
-
-                const cellPos = getCellPosition(x, y);
-                
-                if (cellPos && (cellPos.row !== lastRow || cellPos.col !== lastCol)) {
-                    lastRow = cellPos.row;
-                    lastCol = cellPos.col;
-                    
-                    highlightOverlay.style.left = cellPos.x + 'px';
-                    highlightOverlay.style.top = cellPos.y + 'px';
-                    highlightOverlay.style.width = cellPos.width + 'px';
-                    highlightOverlay.style.height = cellPos.height + 'px';
-                    highlightOverlay.style.display = 'block';
-                } else if (!cellPos) {
-                    highlightOverlay.style.display = 'none';
-                    lastRow = -1;
-                    lastCol = -1;
-                }
-            });
-
-            lucksheetContainer.addEventListener("dragleave", function(e) {
-                highlightOverlay.style.display = 'none';
-                lastRow = -1;
-                lastCol = -1;
-            });
-
-            lucksheetContainer.addEventListener("drop", function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                highlightOverlay.style.display = 'none';
-                
-                if (!draggedField) return;
-
-                const rect = lucksheetContainer.getBoundingClientRect();
-                const scrollLeft = lucksheetContainer.scrollLeft;
-                const scrollTop = lucksheetContainer.scrollTop;
-                
-                const x = e.clientX - rect.left + scrollLeft;
-                const y = e.clientY - rect.top + scrollTop;
-
-                const cellPos = getCellPosition(x, y);
-
-                if (cellPos) {
-                    showFieldDialog(draggedField, cellPos.row, cellPos.col);
-                }
-                
-                lastRow = -1;
-                lastCol = -1;
-            });
+            showFieldDialog(fieldType, row, col, rowEnd, colEnd);
         }
 
-        function showFieldDialog(fieldType, row, col) {
+        function showFieldDialog(fieldType, row, col, rowEnd, colEnd) {
             const fieldName = fieldType.match(/\[(.*?)\s/)[1];
             const defaultName = fieldName + '-field';
             const dialog = document.createElement('div');
@@ -451,8 +208,11 @@ function initLuckysheetEditor(wrapperId, config) {
                 const name = nameInput.value.trim() || defaultName;
                 const required = requiredInput.checked;
                 const shortcode = buildShortcode(fieldType, name, required);
-                const range = [row, col, row, col];
+
+                // ใส่ shortcode ใน cell แรกของ selection
                 luckysheet.setCellValue(row, col, shortcode);
+
+                const range = [row, col, rowEnd, colEnd];
                 setTimeout(function() {
                     luckysheet.setRangeFormat("ht", 0, range);
                     luckysheet.setRangeFormat("vt", 0, range);
@@ -461,6 +221,7 @@ function initLuckysheetEditor(wrapperId, config) {
                     luckysheet.setRangeFormat("fs", 12, range);
                     luckysheet.setRangeFormat("bg", "#F3F4F6", range);
                 }, 50);
+
                 closeDialog();
             };
 
@@ -498,8 +259,8 @@ function initLuckysheetEditor(wrapperId, config) {
                 formFieldsTitle.textContent = "Form Fields";
                 formFieldsSection.appendChild(formFieldsTitle);
 
-                formFieldsSection.appendChild(createFormFieldButton("📝 Text", "[text* your-name]"));
-                formFieldsSection.appendChild(createFormFieldButton("📧 Email", "[email* your-email]"));
+                formFieldsSection.appendChild(createFormFieldButton("📝 Text", "[text your-name]"));
+                formFieldsSection.appendChild(createFormFieldButton("📧 Email", "[email your-email]"));
                 formFieldsSection.appendChild(createFormFieldButton("📱 Phone", "[tel your-phone]"));
                 formFieldsSection.appendChild(createFormFieldButton("📄 Textarea", "[textarea your-message]"));
                 formFieldsSection.appendChild(createFormFieldButton("📅 Date", "[date your-date]"));
@@ -515,7 +276,6 @@ function initLuckysheetEditor(wrapperId, config) {
                 isFullscreen = true;
                 setTimeout(function() {
                     luckysheet.resize();
-                    setupDropZone();
                 }, 100);
             } else {
                 if (sidebarMenu) {
