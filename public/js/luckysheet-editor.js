@@ -95,6 +95,15 @@ function initLuckysheetEditor(wrapperId, config) {
             })
             .catch(err => document.getElementById(statusId).textContent = "Error: " + err);
 
+        function renderFormFields(html) {
+            return html
+                .replace(/\[signature\s+([^\]]+)\]/gi, '<div style="border:2px dashed #d1d5db;padding:20px;text-align:center;background:#f9fafb;min-height:80px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#6b7280;font-style:italic;border-radius:6px;">Signature</div>')
+                .replace(/\[date\s+([^\]]+)\]/gi, '<input type="date" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[email\s+([^\]]+)\]/gi, '<input type="email" placeholder="Email" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[text\s+([^\]]+)\]/gi, '<input type="text" placeholder="Text" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[textarea\s+([^\]]+)\]/gi, '<textarea placeholder="Enter text..." rows="4" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical;min-height:80px;font-family:inherit;"></textarea>');
+        }
+
         function generatePreview() {
             if (typeof luckysheetToHtml !== "function") {
                 document.getElementById(statusId).textContent = "Error: Converter not loaded";
@@ -105,28 +114,180 @@ function initLuckysheetEditor(wrapperId, config) {
                 const sheets = luckysheetToHtml();
                 const container = document.getElementById(previewSheetsId);
                 container.innerHTML = "";
+                
                 let allHtml = "";
                 sheets.forEach(function(sheet) {
-                    const sheetDiv = document.createElement("div");
-                    sheetDiv.className = "border rounded-lg p-4 bg-white mb-4";
-                    sheetDiv.style.maxHeight = "600px";
-                    sheetDiv.style.overflow = "auto";
-                    const title = document.createElement("h4");
-                    title.className = "font-semibold text-base mb-3 text-gray-700";
-                    title.textContent = "Page: " + sheet.name;
-                    const content = document.createElement("div");
-                    content.innerHTML = sheet.html;
-                    sheetDiv.appendChild(title);
-                    sheetDiv.appendChild(content);
-                    container.appendChild(sheetDiv);
                     allHtml += sheet.html;
                 });
+                
+                // Add CSS once
+                const style = document.createElement('style');
+                style.textContent = `
+                    .sheet-wrapper { margin-bottom: 30px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; background: white; }
+                    .sheet-wrapper:last-child { margin-bottom: 0; }
+                    .preview-tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; align-items: center; }
+                    .preview-tab-btn { padding: 12px 24px; border: none; background: none; cursor: pointer; font-weight: 500; color: #6b7280; border-bottom: 3px solid transparent; transition: all 0.2s; }
+                    .preview-tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+                    .preview-tab-btn:hover:not(.active) { color: #374151; background: #f9fafb; }
+                    .zoom-controls { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+                    .zoom-btn { width: 32px; height: 32px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; color: #374151; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+                    .zoom-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+                    .zoom-level { font-size: 14px; color: #6b7280; min-width: 50px; text-align: center; }
+                    .tab-content { display: none; }
+                    .tab-content.active { display: block; }
+                    .preview-content { max-height: 600px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px; background: #fafafa; }
+                    .preview-content table td { line-height: 1.3; }
+                    .preview-zoom-wrapper { transform-origin: top left; transition: transform 0.2s; }
+                `;
+                container.appendChild(style);
+                
+                // Create each sheet with its own tabs
+                sheets.forEach(function(sheet, index) {
+                    const sheetWrapper = document.createElement('div');
+                    sheetWrapper.className = 'sheet-wrapper';
+                    
+                    // Sheet title
+                    const title = document.createElement('h3');
+                    title.className = 'font-semibold text-lg mb-4 text-gray-800';
+                    title.textContent = 'Page: ' + sheet.name;
+                    sheetWrapper.appendChild(title);
+                    
+                    // Create tabs for this sheet
+                    const tabsDiv = document.createElement('div');
+                    tabsDiv.className = 'preview-tabs';
+                    
+                    const previewBtn = document.createElement('button');
+                    previewBtn.type = 'button';
+                    previewBtn.className = 'preview-tab-btn active';
+                    previewBtn.textContent = 'Preview';
+                    
+                    const sourceBtn = document.createElement('button');
+                    sourceBtn.type = 'button';
+                    sourceBtn.className = 'preview-tab-btn';
+                    sourceBtn.textContent = 'Source Code';
+                    
+                    // Zoom controls
+                    const zoomControls = document.createElement('div');
+                    zoomControls.className = 'zoom-controls';
+                    
+                    const zoomOutBtn = document.createElement('button');
+                    zoomOutBtn.type = 'button';
+                    zoomOutBtn.className = 'zoom-btn';
+                    zoomOutBtn.innerHTML = '−';
+                    zoomOutBtn.title = 'Zoom Out';
+                    
+                    const zoomLevel = document.createElement('span');
+                    zoomLevel.className = 'zoom-level';
+                    zoomLevel.textContent = '100%';
+                    
+                    const zoomInBtn = document.createElement('button');
+                    zoomInBtn.type = 'button';
+                    zoomInBtn.className = 'zoom-btn';
+                    zoomInBtn.innerHTML = '+';
+                    zoomInBtn.title = 'Zoom In';
+                    
+                    const zoomResetBtn = document.createElement('button');
+                    zoomResetBtn.type = 'button';
+                    zoomResetBtn.className = 'zoom-btn';
+                    zoomResetBtn.innerHTML = '⟲';
+                    zoomResetBtn.title = 'Reset Zoom';
+                    zoomResetBtn.style.fontSize = '18px';
+                    
+                    zoomControls.appendChild(zoomOutBtn);
+                    zoomControls.appendChild(zoomLevel);
+                    zoomControls.appendChild(zoomInBtn);
+                    zoomControls.appendChild(zoomResetBtn);
+                    
+                    const previewTabContent = document.createElement('div');
+                    previewTabContent.className = 'tab-content active preview-content';
+                    
+                    const previewZoomWrapper = document.createElement('div');
+                    previewZoomWrapper.className = 'preview-zoom-wrapper';
+                    previewZoomWrapper.innerHTML = renderFormFields(sheet.html);
+                    previewTabContent.appendChild(previewZoomWrapper);
+                    
+                    const sourceTabContent = document.createElement('div');
+                    sourceTabContent.className = 'tab-content';
+                    
+                    const textarea = document.createElement('textarea');
+                    textarea.className = 'w-full p-4 border rounded-lg font-mono text-sm bg-gray-50';
+                    textarea.style.minHeight = '400px';
+                    textarea.style.fontFamily = 'monospace';
+                    textarea.spellcheck = false;
+                    textarea.value = sheet.html;
+                    
+                    // Zoom functionality
+                    let currentZoom = 1.0;
+                    
+                    function updateZoom(newZoom) {
+                        currentZoom = Math.max(0.25, Math.min(2.0, newZoom));
+                        previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
+                        zoomLevel.textContent = Math.round(currentZoom * 100) + '%';
+                    }
+                    
+                    zoomInBtn.onclick = function() {
+                        updateZoom(currentZoom + 0.1);
+                    };
+                    
+                    zoomOutBtn.onclick = function() {
+                        updateZoom(currentZoom - 0.1);
+                    };
+                    
+                    zoomResetBtn.onclick = function() {
+                        updateZoom(1.0);
+                    };
+                    
+                    // Tab switching for this sheet
+                    previewBtn.onclick = function() {
+                        previewBtn.classList.add('active');
+                        sourceBtn.classList.remove('active');
+                        previewTabContent.classList.add('active');
+                        sourceTabContent.classList.remove('active');
+                        zoomControls.style.display = 'flex';
+                    };
+                    
+                    sourceBtn.onclick = function() {
+                        previewBtn.classList.remove('active');
+                        sourceBtn.classList.add('active');
+                        previewTabContent.classList.remove('active');
+                        sourceTabContent.classList.add('active');
+                        zoomControls.style.display = 'none';
+                    };
+                    
+                    // Sync source to preview for this sheet only
+                    textarea.addEventListener('input', function() {
+                        previewZoomWrapper.innerHTML = renderFormFields(this.value);
+                        
+                        // Update allHtml and hidden field
+                        sheets[index].html = this.value;
+                        let updatedHtml = "";
+                        sheets.forEach(function(s) {
+                            updatedHtml += s.html;
+                        });
+                        const contentInput = document.querySelector("[name=content]");
+                        if (contentInput) contentInput.value = updatedHtml;
+                    });
+                    
+                    sourceTabContent.appendChild(textarea);
+                    
+                    tabsDiv.appendChild(previewBtn);
+                    tabsDiv.appendChild(sourceBtn);
+                    tabsDiv.appendChild(zoomControls);
+                    sheetWrapper.appendChild(tabsDiv);
+                    sheetWrapper.appendChild(previewTabContent);
+                    sheetWrapper.appendChild(sourceTabContent);
+                    
+                    container.appendChild(sheetWrapper);
+                });
+                
                 document.getElementById(previewId).style.display = "block";
                 document.getElementById(previewBtnId).style.display = "none";
                 document.getElementById(reloadBtnId).style.display = "inline-flex";
                 document.getElementById(statusId).textContent = "Preview ready";
+                
                 const contentInput = document.querySelector("[name=content]");
                 if (contentInput) contentInput.value = allHtml;
+                
             } catch (e) {
                 document.getElementById(statusId).textContent = "Error: " + e.message;
                 console.error(e);
@@ -209,7 +370,6 @@ function initLuckysheetEditor(wrapperId, config) {
                 const required = requiredInput.checked;
                 const shortcode = buildShortcode(fieldType, name, required);
 
-                // ใส่ shortcode ใน cell แรกของ selection
                 luckysheet.setCellValue(row, col, shortcode);
 
                 const range = [row, col, rowEnd, colEnd];
