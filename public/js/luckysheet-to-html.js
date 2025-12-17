@@ -1,19 +1,35 @@
-// Luckysheet to HTML Converter - 100% Complete
 function luckysheetToHtml() {
+    console.log('=== luckysheetToHtml START ===');
     const sheets = luckysheet.getAllSheets();
     const result = [];
     
     sheets.forEach((sheet, sheetIndex) => {
+        console.log('Processing sheet:', sheet.name, 'index:', sheetIndex);
         const data = sheet.data;
-        const config = sheet.config || {};
-        const merge = config.merge || {};
-        const rowlen = config.rowlen ? config.rowlen : {};
-        const columnlen = config.columnlen ? config.columnlen : {};
-        const borderInfo = config.borderInfo || [];
-        const condFormat = config.condFormat || [];
+        
+        // Switch ไปยัง sheet นี้เพื่อดึง config ล่าสุด
+        const originalActiveIndex = luckysheet.getSheet().index;
+        if (sheetIndex !== originalActiveIndex) {
+            console.log('Switching to sheet index:', sheetIndex);
+            luckysheet.setSheetActive(sheetIndex);
+        }
+        
+        // ดึง config ล่าสุด
+        const currentConfig = luckysheet.getConfig();
+        console.log('Sheet:', sheet.name, 'columnlen:', currentConfig.columnlen);
+        
+        const columnlen = currentConfig.columnlen || {};
+        const rowlen = currentConfig.rowlen || {};
+
+
+        
+        const merge = currentConfig.merge || {};
         
         const maxRow = data.length;
         const maxCol = Math.max(...data.map(row => row ? row.length : 0));
+        
+        const borderInfo = currentConfig.borderInfo || [];
+        const condFormat = currentConfig.condFormat || [];
         
         // Build merge lookup table for performance
         const mergeLookup = buildMergeLookup(merge);
@@ -21,12 +37,19 @@ function luckysheetToHtml() {
         // Apply conditional formatting
         const conditionalStyles = applyConditionalFormatting(data, condFormat, maxRow, maxCol);
         
-        let html = '<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; table-layout: fixed;">';
+        // คำนวณ total width
+        let totalWidth = 0;
+        for (let c = 0; c < maxCol; c++) {
+            totalWidth += columnlen[c] !== undefined ? columnlen[c] : 73;
+        }
+        
+        let html = '<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; table-layout: fixed; width: ' + totalWidth + 'px;">';
         
         // Column widths
         html += '<colgroup>';
         for (let c = 0; c < maxCol; c++) {
             const colWidth = columnlen[c] !== undefined ? columnlen[c] : 73;
+            if (c <= 5) console.log('Sheet:', sheet.name, 'Col', c, 'width:', colWidth, 'px');
             html += '<col style="width: ' + colWidth + 'px;">';
         }
         html += '</colgroup>';

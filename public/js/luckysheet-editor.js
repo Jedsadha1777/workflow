@@ -83,6 +83,12 @@ function initLuckysheetEditor(wrapperId, config) {
                             showsheetbar: true,
                             enableAddRow: true,
                             enableAddCol: true,
+                            showToolbar: true,
+                            showFormulaBar: true,
+                            enableAddBackTop: false,
+                            userInfo: false,
+                            myFolderUrl: false,
+                            devicePixelRatio: 1,
                         });
 
                         scrollBlocked = true;
@@ -97,12 +103,50 @@ function initLuckysheetEditor(wrapperId, config) {
             .catch(err => document.getElementById(statusId).textContent = "Error: " + err);
 
         function renderFormFields(html) {
+            html = html.replace(/\[select(\*?)\s+([^\s]+)\s+(.*?)\]/gi, function(match, required, name, restStr) {
+                const hasFirstAsLabel = /first_as_label/.test(restStr);
+                const optionsMatch = restStr.match(/(?:"([^"]*)"|&quot;([^&]*?)&quot;)/gi);
+                
+                if (!optionsMatch) return match;
+                
+                const options = optionsMatch.map(opt => opt.replace(/^(?:"|&quot;)|(?:"|&quot;)$/gi, ''));
+                let selectHtml = '<select style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;background:white;">';
+                
+                options.forEach((option, index) => {
+                    if (index === 0 && hasFirstAsLabel) {
+                        selectHtml += '<option value="" disabled selected>' + option + '</option>';
+                    } else {
+                        selectHtml += '<option value="' + option + '">' + option + '</option>';
+                    }
+                });
+                
+                selectHtml += '</select>';
+                return selectHtml;
+            });
+            
             return html
                 .replace(/\[signature\s+([^\]]+)\]/gi, '<div style="border:2px dashed #d1d5db;padding:20px;text-align:center;background:#f9fafb;min-height:80px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#6b7280;font-style:italic;border-radius:6px;">Signature</div>')
                 .replace(/\[date\s+([^\]]+)\]/gi, '<input type="date" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
                 .replace(/\[email\s+([^\]]+)\]/gi, '<input type="email" placeholder="Email" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[tel\s+([^\]]+)\]/gi, '<input type="tel" placeholder="Phone" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
                 .replace(/\[text\s+([^\]]+)\]/gi, '<input type="text" placeholder="Text" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[number\s+([^\]]+)\]/gi, '<input type="number" placeholder="Number" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />')
+                .replace(/\[checkbox\s+([^\]]+)\]/gi, '<input type="checkbox" style="width:18px;height:18px;cursor:pointer;" />')
                 .replace(/\[textarea\s+([^\]]+)\]/gi, '<textarea placeholder="Enter text..." rows="4" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical;min-height:80px;font-family:inherit;"></textarea>');
+        }
+
+        function columnToLetter(col) {
+            let letter = '';
+            let temp = col;
+            while (temp >= 0) {
+                letter = String.fromCharCode(65 + (temp % 26)) + letter;
+                temp = Math.floor(temp / 26) - 1;
+            }
+            return letter;
+        }
+
+        function getCellReference(row, col) {
+            return columnToLetter(col) + (row + 1);
         }
 
         function cropTableByArea(htmlString, area) {
@@ -114,23 +158,36 @@ function initLuckysheetEditor(wrapperId, config) {
             
             if (!table) return htmlString;
             
+            const colgroup = table.querySelector('colgroup');
             const rows = Array.from(table.querySelectorAll('tr'));
             const startRow = area.row[0];
             const endRow = area.row[1];
             const startCol = area.column[0];
             const endCol = area.column[1];
             
-            // Remove rows outside area
+            if (colgroup) {
+                const cols = Array.from(colgroup.querySelectorAll('col'));
+                cols.forEach((col, index) => {
+                    if (index < startCol || index > endCol) {
+                        col.remove();
+                    }
+                });
+            }
+            
             rows.forEach((row, rowIndex) => {
                 if (rowIndex < startRow || rowIndex > endRow) {
                     row.remove();
                 } else {
-                    // Remove cells outside column area
                     const cells = Array.from(row.querySelectorAll('td, th'));
-                    cells.forEach((cell, colIndex) => {
-                        if (colIndex < startCol || colIndex > endCol) {
+                    let cellIndex = 0;
+                    cells.forEach((cell) => {
+                        const colspan = parseInt(cell.getAttribute('colspan') || '1');
+                        
+                        if (cellIndex < startCol || cellIndex > endCol) {
                             cell.remove();
                         }
+                        
+                        cellIndex += colspan;
                     });
                 }
             });
@@ -151,13 +208,12 @@ function initLuckysheetEditor(wrapperId, config) {
                 
                 let allHtml = "";
                 
-                // Add CSS once
                 const style = document.createElement('style');
                 style.textContent = `
                     .sheet-wrapper { margin-bottom: 30px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; background: white; position: relative; }
                     .sheet-wrapper:last-child { margin-bottom: 0; }
                     .area-badge { position: absolute; top: 10px; right: 10px; background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-                    .preview-tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; align-items: center; }
+                    .preview-tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; align-items: center; flex-wrap: wrap; gap: 8px; }
                     .preview-tab-btn { padding: 12px 24px; border: none; background: none; cursor: pointer; font-weight: 500; color: #6b7280; border-bottom: 3px solid transparent; transition: all 0.2s; }
                     .preview-tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
                     .preview-tab-btn:hover:not(.active) { color: #374151; background: #f9fafb; }
@@ -169,16 +225,14 @@ function initLuckysheetEditor(wrapperId, config) {
                     .tab-content.active { display: block; }
                     .preview-content { max-height: 600px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px; background: #fafafa; }
                     .preview-content table td { line-height: 1.3; }
-                    .preview-zoom-wrapper { transform-origin: top left; transition: transform 0.2s; }
+                    .preview-zoom-wrapper { transform-origin: top left; transition: transform 0.2s; display: inline-block; }
                 `;
                 container.appendChild(style);
                 
-                // Create each sheet with its own tabs
                 sheets.forEach(function(sheet, index) {
-                    const sheetArea = window.LuckysheetAreas[index];
+                    const sheetArea = window.LuckysheetAreas[sheet.name];
                     let processedHtml = sheet.html;
                     
-                    // Apply area filter if exists
                     if (sheetArea) {
                         processedHtml = cropTableByArea(sheet.html, sheetArea);
                     }
@@ -188,7 +242,6 @@ function initLuckysheetEditor(wrapperId, config) {
                     const sheetWrapper = document.createElement('div');
                     sheetWrapper.className = 'sheet-wrapper';
                     
-                    // Area badge if set
                     if (sheetArea) {
                         const badge = document.createElement('div');
                         badge.className = 'area-badge';
@@ -197,13 +250,11 @@ function initLuckysheetEditor(wrapperId, config) {
                         sheetWrapper.appendChild(badge);
                     }
                     
-                    // Sheet title
                     const title = document.createElement('h3');
                     title.className = 'font-semibold text-lg mb-4 text-gray-800';
                     title.textContent = 'Page: ' + sheet.name;
                     sheetWrapper.appendChild(title);
                     
-                    // Create tabs for this sheet
                     const tabsDiv = document.createElement('div');
                     tabsDiv.className = 'preview-tabs';
                     
@@ -217,7 +268,6 @@ function initLuckysheetEditor(wrapperId, config) {
                     sourceBtn.className = 'preview-tab-btn';
                     sourceBtn.textContent = 'Source Code';
                     
-                    // Zoom controls
                     const zoomControls = document.createElement('div');
                     zoomControls.className = 'zoom-controls';
                     
@@ -267,28 +317,31 @@ function initLuckysheetEditor(wrapperId, config) {
                     textarea.spellcheck = false;
                     textarea.value = processedHtml;
                     
-                    // Zoom functionality
                     let currentZoom = 1.0;
                     
                     function updateZoom(newZoom) {
                         currentZoom = Math.max(0.25, Math.min(2.0, newZoom));
-                        previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
+                        
+                        previewZoomWrapper.style.transform = 'scale(1)';
+                        const table = previewZoomWrapper.querySelector('table');
+                        if (table) {
+                            const actualWidth = table.offsetWidth;
+                            const actualHeight = table.offsetHeight;
+                            previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
+                            previewZoomWrapper.style.width = actualWidth + 'px';
+                            previewZoomWrapper.style.height = actualHeight + 'px';
+                            previewTabContent.style.minHeight = (actualHeight * currentZoom + 32) + 'px';
+                        } else {
+                            previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
+                        }
+                        
                         zoomLevel.textContent = Math.round(currentZoom * 100) + '%';
                     }
                     
-                    zoomInBtn.onclick = function() {
-                        updateZoom(currentZoom + 0.1);
-                    };
+                    zoomInBtn.onclick = function() { updateZoom(currentZoom + 0.1); };
+                    zoomOutBtn.onclick = function() { updateZoom(currentZoom - 0.1); };
+                    zoomResetBtn.onclick = function() { updateZoom(1.0); };
                     
-                    zoomOutBtn.onclick = function() {
-                        updateZoom(currentZoom - 0.1);
-                    };
-                    
-                    zoomResetBtn.onclick = function() {
-                        updateZoom(1.0);
-                    };
-                    
-                    // Tab switching for this sheet
                     previewBtn.onclick = function() {
                         previewBtn.classList.add('active');
                         sourceBtn.classList.remove('active');
@@ -305,15 +358,16 @@ function initLuckysheetEditor(wrapperId, config) {
                         zoomControls.style.display = 'none';
                     };
                     
-                    // Sync source to preview for this sheet only
                     textarea.addEventListener('input', function() {
-                        previewZoomWrapper.innerHTML = renderFormFields(this.value);
+                        const newContent = renderFormFields(this.value);
                         
-                        // Update allHtml and hidden field
+                        previewZoomWrapper.innerHTML = newContent;
+                        setTimeout(function() { updateZoom(currentZoom); }, 10);
+                        
                         sheets[index].html = this.value;
                         let updatedHtml = "";
-                        sheets.forEach(function(s, idx) {
-                            const area = window.LuckysheetAreas[idx];
+                        sheets.forEach(function(s) {
+                            const area = window.LuckysheetAreas[s.name];
                             const html = area ? cropTableByArea(s.html, area) : s.html;
                             updatedHtml += html;
                         });
@@ -331,6 +385,8 @@ function initLuckysheetEditor(wrapperId, config) {
                     sheetWrapper.appendChild(sourceTabContent);
                     
                     container.appendChild(sheetWrapper);
+                    
+                    setTimeout(function() { updateZoom(1.0); }, 50);
                 });
                 
                 document.getElementById(previewId).style.display = "block";
@@ -361,6 +417,8 @@ function initLuckysheetEditor(wrapperId, config) {
 
         let isFullscreen = false;
         let originalStyle = "";
+        let originalParent = null;
+        let originalNextSibling = null;
         const fullscreenBtn = document.getElementById(fullscreenBtnId);
         let sidebarMenu = null;
 
@@ -385,6 +443,54 @@ function initLuckysheetEditor(wrapperId, config) {
             return btn;
         }
 
+        function updateSidebarAreaInfo() {
+            if (!sidebarMenu) return;
+            
+            const existingInfo = sidebarMenu.querySelector('.area-info-section');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+            
+            const allSheets = luckysheet.getAllSheets();
+            
+            const areaInfoSection = document.createElement("div");
+            areaInfoSection.className = "menu-section area-info-section";
+            areaInfoSection.style.maxHeight = "300px";
+            areaInfoSection.style.overflowY = "auto";
+            
+            const areaInfoTitle = document.createElement("div");
+            areaInfoTitle.className = "menu-title";
+            areaInfoTitle.textContent = "Area Status";
+            areaInfoSection.appendChild(areaInfoTitle);
+            
+            allSheets.forEach(function(sheet) {
+                const sheetArea = window.LuckysheetAreas[sheet.name];
+                
+                const sheetInfo = document.createElement("div");
+                sheetInfo.style.cssText = "padding:8px 12px;margin-bottom:8px;background:#374151;border-radius:6px;font-size:12px;line-height:1.4;";
+                
+                const sheetNameDiv = document.createElement("div");
+                sheetNameDiv.style.cssText = "color:#f3f4f6;font-weight:600;margin-bottom:4px;";
+                sheetNameDiv.textContent = sheet.name;
+                sheetInfo.appendChild(sheetNameDiv);
+                
+                const areaStatusDiv = document.createElement("div");
+                if (sheetArea) {
+                    areaStatusDiv.style.color = "#10b981";
+                    areaStatusDiv.innerHTML = "✓ R" + (sheetArea.row[0]+1) + "-" + (sheetArea.row[1]+1) + 
+                                             " C" + (sheetArea.column[0]+1) + "-" + (sheetArea.column[1]+1);
+                } else {
+                    areaStatusDiv.style.color = "#9ca3af";
+                    areaStatusDiv.textContent = "○ Full sheet";
+                }
+                sheetInfo.appendChild(areaStatusDiv);
+                
+                areaInfoSection.appendChild(sheetInfo);
+            });
+            
+            sidebarMenu.appendChild(areaInfoSection);
+        }
+
         function setArea() {
             const range = luckysheet.getRange();
             if (!range || range.length === 0) {
@@ -393,19 +499,22 @@ function initLuckysheetEditor(wrapperId, config) {
             }
 
             const selection = range[0];
-            const sheetIndex = luckysheet.getSheet().index;
+            const currentSheet = luckysheet.getSheet();
+            const sheetName = currentSheet.name;
             
             const area = {
                 row: [selection.row[0], selection.row[1]],
                 column: [selection.column[0], selection.column[1]]
             };
             
-            window.LuckysheetAreas[sheetIndex] = area;
+            window.LuckysheetAreas[sheetName] = area;
             
             const rowRange = 'Row ' + (area.row[0]+1) + '-' + (area.row[1]+1);
             const colRange = 'Col ' + (area.column[0]+1) + '-' + (area.column[1]+1);
             
-            alert('Area set for current sheet:\n' + rowRange + '\n' + colRange + '\n\nClick "Reload HTML" to apply changes.');
+            updateSidebarAreaInfo();
+            
+            alert('Area set for "' + sheetName + '":\n' + rowRange + '\n' + colRange + '\n\nClick "Reload HTML" to apply changes.');
         }
 
         function insertField(fieldType) {
@@ -426,12 +535,21 @@ function initLuckysheetEditor(wrapperId, config) {
 
         function showFieldDialog(fieldType, row, col, rowEnd, colEnd) {
             const fieldName = fieldType.match(/\[(.*?)\s/)[1];
-            const defaultName = fieldName + '-field';
+            const cellRef = getCellReference(row, col);
+            const defaultName = fieldName + '-field-' + cellRef;
+            const isSelect = fieldName === 'select';
+            
             const dialog = document.createElement('div');
-            dialog.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);z-index:999999;min-width:300px;';
+            dialog.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);z-index:999;min-width:300px;max-width:500px;max-height:90vh;overflow-y:auto;';
 
             let html = '<h3 style="margin:0 0 15px 0;font-size:16px;font-weight:bold;">Configure Field</h3>';
             html += '<div style="margin-bottom:15px;"><label style="display:block;margin-bottom:5px;font-size:14px;">Field Name:</label><input type="text" id="field_name_input" value="' + defaultName + '" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></div>';
+            
+            if (isSelect) {
+                html += '<div style="margin-bottom:15px;"><label style="display:block;margin-bottom:5px;font-size:14px;">Options (one per line):</label><textarea id="field_options_input" rows="6" placeholder="Option 1\nOption 2\nOption 3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-family:monospace;font-size:13px;">Option 1\nOption 2\nOption 3</textarea></div>';
+                html += '<div style="margin-bottom:15px;"><label style="display:flex;align-items:center;font-size:14px;cursor:pointer;"><input type="checkbox" id="field_first_as_label_input" style="margin-right:8px;"> First option as label (not a value)</label></div>';
+            }
+            
             html += '<div style="margin-bottom:15px;"><label style="display:flex;align-items:center;font-size:14px;cursor:pointer;"><input type="checkbox" id="field_required_input" style="margin-right:8px;"> Required field</label></div>';
             html += '<div style="display:flex;gap:10px;justify-content:flex-end;"><button id="cancel_btn" style="padding:8px 16px;background:#6B7280;color:white;border:none;border-radius:4px;cursor:pointer;">Cancel</button><button id="ok_btn" style="padding:8px 16px;background:#2563EB;color:white;border:none;border-radius:4px;cursor:pointer;">OK</button></div>';
 
@@ -440,6 +558,8 @@ function initLuckysheetEditor(wrapperId, config) {
 
             const nameInput = dialog.querySelector('#field_name_input');
             const requiredInput = dialog.querySelector('#field_required_input');
+            const optionsInput = isSelect ? dialog.querySelector('#field_options_input') : null;
+            const firstAsLabelInput = isSelect ? dialog.querySelector('#field_first_as_label_input') : null;
             const okBtn = dialog.querySelector('#ok_btn');
             const cancelBtn = dialog.querySelector('#cancel_btn');
 
@@ -455,7 +575,10 @@ function initLuckysheetEditor(wrapperId, config) {
             okBtn.onclick = function() {
                 const name = nameInput.value.trim() || defaultName;
                 const required = requiredInput.checked;
-                const shortcode = buildShortcode(fieldType, name, required);
+                const options = isSelect ? optionsInput.value.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0) : null;
+                const firstAsLabel = isSelect ? firstAsLabelInput.checked : false;
+                
+                const shortcode = buildShortcode(fieldType, name, required, options, firstAsLabel);
 
                 luckysheet.setCellValue(row, col, shortcode);
 
@@ -473,24 +596,33 @@ function initLuckysheetEditor(wrapperId, config) {
             };
 
             nameInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !isSelect) {
                     okBtn.click();
                 }
             });
         }
 
-        function buildShortcode(fieldType, name, required) {
+        function buildShortcode(fieldType, name, required, options, firstAsLabel) {
             const field = fieldType.match(/\[(.*?)\s/)[1];
             const requiredMark = required ? '*' : '';
+            
+            if (field === 'select' && options && options.length > 0) {
+                const optionsStr = options.map(opt => '"' + opt + '"').join(' ');
+                const firstAsLabelStr = firstAsLabel ? 'first_as_label ' : '';
+                return '[' + field + requiredMark + ' ' + name + ' ' + firstAsLabelStr + optionsStr + ']';
+            }
+            
             return '[' + field + requiredMark + ' ' + name + ']';
         }
 
         function toggleFullscreen() {
             const container = document.getElementById(containerId);
             if (!isFullscreen) {
+                originalParent = container.parentNode;
+                originalNextSibling = container.nextSibling;
                 originalStyle = container.getAttribute("style");
                 sidebarMenu = document.createElement("div");
-                sidebarMenu.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:100vh;background:#1f2937;z-index:99999;padding:20px;box-sizing:border-box;overflow-y:auto;';
+                sidebarMenu.style.cssText = 'position:fixed;top:0;left:0;width:220px;height:100vh;background:#1f2937;z-index:998;padding:20px;box-sizing:border-box;overflow-y:auto;';
 
                 const returnBtn = document.createElement("button");
                 returnBtn.textContent = "← Return";
@@ -509,6 +641,9 @@ function initLuckysheetEditor(wrapperId, config) {
                 formFieldsSection.appendChild(createFormFieldButton("📝 Text", "[text your-name]"));
                 formFieldsSection.appendChild(createFormFieldButton("📧 Email", "[email your-email]"));
                 formFieldsSection.appendChild(createFormFieldButton("📱 Phone", "[tel your-phone]"));
+                formFieldsSection.appendChild(createFormFieldButton("🔢 Number", "[number your-number]"));
+                formFieldsSection.appendChild(createFormFieldButton("☑️ Checkbox", "[checkbox your-checkbox]"));
+                formFieldsSection.appendChild(createFormFieldButton("📋 Dropdown", "[select your-dropdown]"));
                 formFieldsSection.appendChild(createFormFieldButton("📄 Textarea", "[textarea your-message]"));
                 formFieldsSection.appendChild(createFormFieldButton("📅 Date", "[date your-date]"));
                 formFieldsSection.appendChild(createFormFieldButton("✍️ Signature", "[signature your-signature]"));
@@ -525,8 +660,11 @@ function initLuckysheetEditor(wrapperId, config) {
                 sidebarMenu.appendChild(areaSection);
 
                 document.body.appendChild(sidebarMenu);
+                document.body.appendChild(container);
 
-                container.style.cssText = 'position:fixed;top:0;left:200px;width:calc(100vw - 200px);height:100vh;z-index:99999;margin:0;border:none;background:#fff;';
+                container.style.cssText = 'position:fixed;top:0;left:220px;width:calc(100vw - 220px);height:100vh;margin:0;border:none;background:#fff;z-index:999;';
+                
+                updateSidebarAreaInfo();
                 fullscreenBtn.textContent = "Exit Fullscreen";
                 fullscreenBtn.style.backgroundColor = "#DC2626";
                 fullscreenBtn.style.color = "#FFF";
@@ -539,6 +677,15 @@ function initLuckysheetEditor(wrapperId, config) {
                     document.body.removeChild(sidebarMenu);
                     sidebarMenu = null;
                 }
+                
+                document.body.removeChild(container);
+
+                if (originalNextSibling) {
+                    originalParent.insertBefore(container, originalNextSibling);
+                } else {
+                    originalParent.appendChild(container);
+                }
+                
                 container.setAttribute("style", originalStyle);
                 fullscreenBtn.textContent = "Fullscreen";
                 fullscreenBtn.style.backgroundColor = "#4B5563";
