@@ -662,7 +662,7 @@ function initLuckysheetEditor(wrapperId, config) {
                 document.body.appendChild(sidebarMenu);
                 document.body.appendChild(container);
 
-                container.style.cssText = 'position:fixed;top:0;left:220px;width:calc(100vw - 220px);height:100vh;margin:0;border:none;background:#fff;z-index:999;';
+                container.style.cssText = 'position:fixed;top:0;left:220px;width:calc(100vw - 220px);height:100vh;margin:0;border:none;background:#fff;z-index:2;';
                 
                 updateSidebarAreaInfo();
                 fullscreenBtn.textContent = "Exit Fullscreen";

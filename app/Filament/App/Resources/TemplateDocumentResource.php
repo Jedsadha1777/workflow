@@ -74,6 +74,9 @@ class TemplateDocumentResource extends Resource
 .form-field-btn:hover { background: #4B5563; }
 .menu-section { margin-bottom: 20px; }
 .menu-title { color: #9CA3AF; font-size: 12px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+.fi-topbar {
+  z-index: 1 !important; 
+}
 </style>
 <div id="{$id}" style="margin:10px 0;width:100%;height:600px;border:1px solid #ccc;position:relative;overflow:hidden;"></div>
 <div class="flex gap-2 mt-4">
