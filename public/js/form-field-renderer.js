@@ -1,87 +1,127 @@
-function renderFormFields(html) {
-    console.log('renderFormFields called with html length:', html.length);
-    console.log('Sample html:', html.substring(0, 500));
+// Form Field Renderer for Filament + Livewire v3
+(function() {
+    'use strict';
     
-    // Select with cell attribute
-    html = html.replace(/\[select(\*?)\s+([^\s]+)\s+(.*?)\]/gi, function(match, required, name, restStr) {
-        console.log('Select matched:', match);
-        const hasFirstAsLabel = /first_as_label/.test(restStr);
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        const optionsMatch = restStr.match(/(?:"([^"]*)"|&quot;([^&]*?)&quot;)/gi);
-        
-        if (!optionsMatch) return match;
-        
-        const options = optionsMatch.map(opt => opt.replace(/^(?:"|&quot;)|(?:"|&quot;)$/gi, ''));
-        let selectHtml = '<select' + cellAttr + ' style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;background:white;">';
-        
-        options.forEach((option, index) => {
-            if (index === 0 && hasFirstAsLabel) {
-                selectHtml += '<option value="" disabled selected>' + option + '</option>';
-            } else {
-                selectHtml += '<option value="' + option + '">' + option + '</option>';
+    // Render CF7-style shortcodes to HTML form fields
+    function renderFormFields(html) {
+        return html.replace(/\[(text|email|tel|number|date|textarea|select|checkbox|signature)(\*?)\s+([^\s\]]+)(?:\s+cell="([^"]+)")?(?:\s+first_as_label)?(?:\s+(.*?))?\]/g, function(match, type, required, name, cell, options) {
+            const cellAttr = cell ? ' data-cell="' + cell + '"' : '';
+            const requiredAttr = required ? ' required' : '';
+            const fieldId = 'field_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+            
+            if (type === 'select') {
+                const optArray = options ? options.match(/"([^"]+)"/g) : [];
+                const opts = optArray ? optArray.map(o => o.replace(/"/g, '')) : ['Option 1', 'Option 2'];
+                let selectHtml = '<select id="' + fieldId + '" name="' + name + '" class="w-full border rounded px-2 py-1"' + cellAttr + requiredAttr + '>';
+                selectHtml += '<option value="">-- Select --</option>';
+                opts.forEach(opt => {
+                    selectHtml += '<option value="' + opt + '">' + opt + '</option>';
+                });
+                selectHtml += '</select>';
+                return selectHtml;
             }
+            
+            if (type === 'textarea') {
+                return '<textarea id="' + fieldId + '" name="' + name + '" class="w-full border rounded px-2 py-1" rows="3"' + cellAttr + requiredAttr + '></textarea>';
+            }
+            
+            if (type === 'checkbox') {
+                return '<input type="checkbox" id="' + fieldId + '" name="' + name + '" class="rounded"' + cellAttr + '>';
+            }
+            
+            if (type === 'signature') {
+                return '<div class="border-2 border-dashed border-gray-300 rounded p-4 text-center text-gray-500"' + cellAttr + '>Signature will appear here after approval</div>';
+            }
+            
+            return '<input type="' + type + '" id="' + fieldId + '" name="' + name + '" class="w-full border rounded px-2 py-1"' + cellAttr + requiredAttr + '>';
+        });
+    }
+    
+    // Process template content containers
+    function processTemplateContents() {
+        document.querySelectorAll('.template-content[data-processed="false"]').forEach(content => {
+            const originalHtml = content.innerHTML;
+            content.innerHTML = renderFormFields(originalHtml);
+            content.setAttribute('data-processed', 'true');
+        });
+    }
+    
+    // Setup form data change listener
+    function setupFormListener(formElement) {
+        if (!formElement || formElement.dataset.listenerAttached === 'true') return;
+        
+        formElement.addEventListener('change', function(e) {
+            if (!e.target.matches('input, select, textarea')) return;
+            
+            const data = {};
+            formElement.querySelectorAll('input, select, textarea').forEach(field => {
+                const cellRef = field.closest('td')?.getAttribute('data-cell') || field.getAttribute('data-cell');
+                if (cellRef && (field.value || field.type === 'checkbox')) {
+                    const [sheet, cell] = cellRef.split(':');
+                    if (sheet && cell) {
+                        if (!data[sheet]) data[sheet] = {};
+                        data[sheet][cell] = field.type === 'checkbox' ? field.checked : field.value;
+                    }
+                }
+            });
+            
+            const textarea = document.querySelector('textarea[data-form-data="true"]');
+            if (textarea) {
+                textarea.value = JSON.stringify(data);
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }, true);
+        
+        formElement.dataset.listenerAttached = 'true';
+    }
+    
+    // Initialize all template forms
+    function initTemplateForms() {
+        processTemplateContents();
+        
+        document.querySelectorAll('[id^="doc_form_"]').forEach(form => {
+            setupFormListener(form);
+        });
+    }
+    
+    // Watch for DOM changes (Livewire morphs)
+    const observer = new MutationObserver(function(mutations) {
+        let shouldInit = false;
+        
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1) {
+                    if (node.classList?.contains('template-content') || 
+                        node.querySelector?.('.template-content')) {
+                        shouldInit = true;
+                    }
+                }
+            });
         });
         
-        selectHtml += '</select>';
-        return selectHtml;
+        if (shouldInit) {
+            setTimeout(initTemplateForms, 10);
+        }
     });
     
-    // Textarea
-    html = html.replace(/\[textarea(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        console.log('Textarea matched:', match);
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<textarea' + cellAttr + ' placeholder="Enter text..." rows="4" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical;min-height:80px;font-family:inherit;"></textarea>';
+    // Start observing
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
     });
     
-    // Text input
-    html = html.replace(/\[text(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        console.log('Text matched:', match);
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="text"' + cellAttr + ' placeholder="Text" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />';
-    });
+    // Initialize on load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTemplateForms);
+    } else {
+        initTemplateForms();
+    }
     
-    // Email
-    html = html.replace(/\[email(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        console.log('Email matched:', match);
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="email"' + cellAttr + ' placeholder="Email" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />';
-    });
+    // Livewire v3 hooks
+    document.addEventListener('livewire:navigated', initTemplateForms);
+    document.addEventListener('livewire:load', initTemplateForms);
     
-    // Other fields...
-    html = html.replace(/\[tel(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="tel"' + cellAttr + ' placeholder="Phone" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />';
-    });
-    
-    html = html.replace(/\[number(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="number"' + cellAttr + ' placeholder="Number" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />';
-    });
-    
-    html = html.replace(/\[date(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="date"' + cellAttr + ' style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;box-sizing:border-box;" />';
-    });
-    
-    html = html.replace(/\[checkbox(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<input type="checkbox"' + cellAttr + ' style="width:18px;height:18px;cursor:pointer;" />';
-    });
-    
-    html = html.replace(/\[signature(\*?)\s+([^\]]+)\]/gi, function(match, required, restStr) {
-        const cellMatch = restStr.match(/cell="([^"]+)"/);
-        const cellAttr = cellMatch ? ' data-cell-field="' + cellMatch[1] + '"' : '';
-        return '<div' + cellAttr + ' style="border:2px dashed #d1d5db;padding:20px;text-align:center;background:#f9fafb;min-height:80px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#6b7280;font-style:italic;border-radius:6px;">Signature Field</div>';
-    });
-    
-    console.log('After replacement, html length:', html.length);
-    return html;
-}
+    // Export for manual usage if needed
+    window.renderFormFields = renderFormFields;
+    window.initTemplateForms = initTemplateForms;
+})();

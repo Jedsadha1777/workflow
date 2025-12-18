@@ -31,6 +31,7 @@ class Document extends Model
             'status' => DocumentStatus::class,
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
+            'content' => 'array',
             'form_data' => 'array',
         ];
     }
@@ -159,12 +160,12 @@ class Document extends Model
 
     public function renderWithData(): string
     {
-        if (!$this->template) {
-            return $this->content;
+        if (!$this->content) {
+            return '';
         }
 
         $html = '';
-        $sheets = $this->template->content['sheets'] ?? [];
+        $sheets = $this->content['sheets'] ?? [];
 
         foreach ($sheets as $sheet) {
             $sheetHtml = $sheet['html'];

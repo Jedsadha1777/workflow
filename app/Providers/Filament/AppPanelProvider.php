@@ -9,6 +9,8 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Assets\Js;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -28,7 +30,7 @@ class AppPanelProvider extends PanelProvider
             ->path('/')
             ->login()
             ->authGuard('web')
-            ->homeUrl('/articles')  // เพิ่มบรรทัดนี้ ชี้ไป articles
+            ->homeUrl('/articles')
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -53,5 +55,14 @@ class AppPanelProvider extends PanelProvider
                 \App\Http\Middleware\FilamentAuthenticate::class,
             ])
             ->spa();
+    }
+
+    public function register(): void
+    {
+        parent::register();
+
+        FilamentAsset::register([
+            Js::make('form-field-renderer', asset('js/form-field-renderer.js')),
+        ], package: 'app');
     }
 }

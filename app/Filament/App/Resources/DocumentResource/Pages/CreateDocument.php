@@ -16,6 +16,28 @@ class CreateDocument extends CreateRecord
         $data['creator_id'] = auth()->id();
         $data['department_id'] = auth()->user()->department_id;
         
+        // Parse content from JSON string to array
+        if (isset($data['content']) && is_string($data['content'])) {
+            $parsed = json_decode($data['content'], true);
+            $data['content'] = $parsed ?: null;
+        } else {
+            // ถ้าไม่มี content ให้ดึงจาก template
+            if (isset($data['template_document_id'])) {
+                $template = \App\Models\TemplateDocument::find($data['template_document_id']);
+                if ($template && $template->content) {
+                    $data['content'] = $template->content;
+                }
+            }
+        }
+        
+        // Parse form_data from JSON string to array
+        if (isset($data['form_data']) && is_string($data['form_data'])) {
+            $parsed = json_decode($data['form_data'], true);
+            $data['form_data'] = $parsed ?: [];
+        } else {
+            $data['form_data'] = [];
+        }
+        
         unset($data['approvers']);
         
         return $data;

@@ -36,7 +36,99 @@ class ViewDocument extends ViewRecord
         ];
 
         if ($viewType === 'full') {
-            $schema[] = Infolists\Components\TextEntry::make('content')
+            // แสดง rendered content ใน Section
+            $schema[] = Infolists\Components\Section::make('Document Content')
+                ->schema([
+                    Infolists\Components\TextEntry::make('rendered_html')
+                        ->label('')
+                        ->state(function ($record) {
+                            if (!$record->content) {
+                                return '<p class="text-gray-500">No content available</p>';
+                            }
+
+                            // Decode content (ถ้าเป็น string ให้ decode ก่อน)
+                            $content = $record->content;
+                            if (is_string($content)) {
+                                $content = json_decode($content, true);
+                            }
+
+                            if (!$content || !isset($content['sheets'])) {
+                                return '<p class="text-red-500">Invalid content format</p>';
+                            }
+
+                            $sheets = $content['sheets'];
+                            $formData = $record->form_data ?? [];
+
+                            $html = '<div class="space-y-6">';
+                            
+                            // Debug info (แสดงในโหมด dev)
+                            if (config('app.debug')) {
+                                $html .= '<div class="bg-blue-50 border border-blue-200 rounded p-3 text-sm mb-4">';
+                                $html .= '<strong>Debug Info:</strong><br>';
+                                $html .= 'Sheets: ' . count($sheets) . '<br>';
+                                $html .= 'Form Data: ' . (empty($formData) ? 'Empty' : json_encode($formData)) . '<br>';
+                                $html .= '</div>';
+                            }
+                            
+                            foreach ($sheets as $sheet) {
+                                $html .= '<div class="border rounded-lg p-4 bg-white">';
+                                $html .= '<h4 class="font-semibold mb-3 text-gray-800">' . htmlspecialchars($sheet['name']) . '</h4>';
+                                
+                                // ดึง HTML จาก sheet
+                                $sheetHtml = $sheet['html'];
+                                $sheetName = $sheet['name'];
+                                
+                                // แทนค่า form fields ด้วยข้อมูลที่กรอก (ถ้ามี)
+                                if (!empty($formData) && isset($formData[$sheetName])) {
+                                    foreach ($formData[$sheetName] as $cell => $value) {
+                                        // ถ้าเป็น signature
+                                        if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
+                                            $approver = \App\Models\User::find($value['approver_id']);
+                                            $signatureHtml = $approver ? 
+                                                '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                                                '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
+                                                '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                                                '</div>' : 
+                                                '<div style="border:2px dashed #d1d5db;padding:10px;text-align:center;color:#9ca3af;">[Signature Pending]</div>';
+                                            
+                                            // แทนที่ [signature ...] ใน td
+                                            $sheetHtml = preg_replace_callback(
+                                                '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>(.*?)<\/td>/s',
+                                                function ($matches) use ($signatureHtml) {
+                                                    return '<td' . $matches[1] . '>' . $signatureHtml . '</td>';
+                                                },
+                                                $sheetHtml
+                                            );
+                                        } else {
+                                            // แทนที่ form fields อื่นๆ (text, email, etc.)
+                                            $escapedValue = htmlspecialchars($value);
+                                            
+                                            // แทนที่ใน td ที่มี data-cell
+                                            $sheetHtml = preg_replace_callback(
+                                                '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>(.*?)<\/td>/s',
+                                                function ($matches) use ($escapedValue) {
+                                                    // แทนที่เนื้อหาทั้งหมดใน td
+                                                    return '<td' . $matches[1] . '><div style="background:#fef3c7;padding:4px 8px;border-radius:4px;"><strong style="color:#92400e;">' . $escapedValue . '</strong></div></td>';
+                                                },
+                                                $sheetHtml
+                                            );
+                                        }
+                                    }
+                                }
+                                
+                                $html .= '<div class="overflow-x-auto" style="max-width:100%;">';
+                                $html .= '<div style="display:inline-block;min-width:100%;">' . $sheetHtml . '</div>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+                            
+                            $html .= '</div>';
+                            
+                            return $html;
+                        })
+                        ->html()
+                        ->columnSpanFull(),
+                ])
                 ->columnSpanFull();
             
             $schema[] = Infolists\Components\RepeatableEntry::make('approvers')
@@ -54,10 +146,13 @@ class ViewDocument extends ViewRecord
                 ])
                 ->columnSpanFull();
         } else {
-            $schema[] = Infolists\Components\TextEntry::make('approvers')
-                ->label('Approvers')
-                ->listWithLineBreaks()
-                ->formatStateUsing(fn () => $this->record->approvers->pluck('approver.name')->join(', '))
+            // status_only - แสดงเฉพาะรายชื่อ approvers
+            $schema[] = Infolists\Components\Section::make('Approvers')
+                ->schema([
+                    Infolists\Components\TextEntry::make('approver_list')
+                        ->label('')
+                        ->state(fn () => $this->record->approvers->pluck('approver.name')->join(', ')),
+                ])
                 ->columnSpanFull();
         }
 
@@ -88,12 +183,26 @@ class ViewDocument extends ViewRecord
                         ->rows(3),
                 ])
                 ->action(function (array $data) use ($currentApproval) {
+                    // อัปเดต approval status
                     $currentApproval->update([
                         'status' => ApprovalStatus::APPROVED,
                         'approved_at' => now(),
                         'comment' => $data['comment'] ?? null,
                     ]);
 
+                    // บันทึก signature ถ้ามี signature_cell
+                    if ($currentApproval->signature_cell) {
+                        $parts = explode(':', $currentApproval->signature_cell);
+                        if (count($parts) === 2) {
+                            $sheet = $parts[0];
+                            $cell = $parts[1];
+                            
+                            $this->record->setSignature($sheet, $cell, $currentApproval->approver_id);
+                            $this->record->save();
+                        }
+                    }
+
+                    // ตรวจสอบว่ามี approver คนถัดไปหรือไม่
                     $nextStep = $this->record->current_step + 1;
                     $hasNextApprover = $this->record->approvers()
                         ->where('step_order', $nextStep)

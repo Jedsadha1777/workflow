@@ -123,3 +123,17 @@ git commit -m "fixed dragdrop"
 exit
 php artisan migrate
 exit
+php artisan optimize
+exit
+php artisan make migration change documents content to json
+php artisan make migration change_documents_content_to_json
+php artisan make:migration change documents content to json
+php artisan make:migration change_documents_content_to_json
+php artisan migrate
+php artisan migrate
+clear
+php artisan optimze
+php artisan otimze:clear
+php artisan optimze:clear
+php artisan optimize
+exit

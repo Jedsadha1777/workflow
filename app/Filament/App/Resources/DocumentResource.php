@@ -33,7 +33,17 @@ class DocumentResource extends Resource
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(fn($state, Forms\Set $set) => $set('form_data', []))
+                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                        $set('form_data', []);
+                        
+                        // เก็บ template content ลง content field
+                        if ($state) {
+                            $template = \App\Models\TemplateDocument::find($state);
+                            if ($template && $template->content) {
+                                $set('content', json_encode($template->content));
+                            }
+                        }
+                    })
                     ->disabled(fn($record) => $record !== null),
 
                 Forms\Components\TextInput::make('title')
@@ -75,94 +85,24 @@ class DocumentResource extends Resource
                             return new HtmlString('<p class="text-sm text-red-500">Sheets is empty</p>');
                         }
 
-                        $formId = 'doc_form_' . uniqid();
-                        $html = '<div id="' . $formId . '" class="space-y-6">';
+                        $formId = 'doc_form_' . ($record ? $record->id : 'new');
+                        $html = '<div id="' . $formId . '" class="space-y-6" wire:ignore>';
 
                         foreach ($sheets as $sheet) {
                             $html .= '<div class="border rounded-lg p-4 bg-white">';
                             $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
-                            $html .= '<div class="overflow-x-auto"><div class="template-content">' . $sheet['html'] . '</div></div>';
+                            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
                             $html .= '</div>';
                         }
 
                         $html .= '</div>';
-
-                        $html .= "<script>
-(function() {
-    console.log('Script started');
-    
-    function loadScript(src) {
-        return new Promise((resolve, reject) => {
-            if (document.querySelector('script[src=\"' + src + '\"]')) {
-                console.log('Script already loaded:', src);
-                resolve();
-                return;
-            }
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-    }
-    
-    loadScript('" . asset('js/form-field-renderer.js') . "').then(() => {
-        console.log('form-field-renderer.js loaded');
-        
-        setTimeout(() => {
-            const form = document.getElementById('{$formId}');
-            console.log('Form element:', form);
-            
-            if (!form) {
-                console.error('Form not found');
-                return;
-            }
-            
-            if (typeof renderFormFields !== 'function') {
-                console.error('renderFormFields is not a function');
-                return;
-            }
-
-            form.querySelectorAll('.template-content').forEach(content => {
-                console.log('Processing content, original length:', content.innerHTML.length);
-                content.innerHTML = renderFormFields(content.innerHTML);
-                console.log('After renderFormFields, length:', content.innerHTML.length);
-            });
-
-            form.querySelectorAll('input, select, textarea').forEach(field => {
-                field.addEventListener('change', () => {
-                    const data = {};
-                    
-                    form.querySelectorAll('input, select, textarea').forEach(f => {
-                        const cellRef = f.closest('td')?.getAttribute('data-cell');
-                        if (cellRef && f.value) {
-                            const [sheet, cell] = cellRef.split(':');
-                            if (!data[sheet]) data[sheet] = {};
-                            data[sheet][cell] = f.type === 'checkbox' ? f.checked : f.value;
-                        }
-                    });
-                    
-                    console.log('Form data:', data);
-                    
-                    const textarea = document.querySelector('textarea[data-form-data=\"true\"]');
-                    if (textarea) {
-                        textarea.value = JSON.stringify(data);
-                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                });
-            });
-        }, 200);
-    }).catch(err => {
-        console.error('Failed to load form-field-renderer.js:', err);
-    });
-})();
-</script>";
 
                         return new HtmlString($html);
                     })
                     ->visible(fn($get) => $get('template_document_id')),
 
                 Forms\Components\Hidden::make('content')
+                    ->dehydrated(true)
                     ->default(''),
 
                 Forms\Components\Repeater::make('approvers')
@@ -209,11 +149,10 @@ class DocumentResource extends Resource
                 Forms\Components\Hidden::make('department_id')
                     ->default(auth()->user()->department_id),
 
-                Forms\Components\Textarea::make('form_data')
+                Forms\Components\Hidden::make('form_data')
                     ->extraAttributes(['data-form-data' => 'true'])
-                    ->hidden()
                     ->dehydrated(true)
-                    ->default([]),
+                    ->default('{}'),
             ]);
     }
 
