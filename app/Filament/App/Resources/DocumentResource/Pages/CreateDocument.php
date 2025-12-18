@@ -31,6 +31,7 @@ class CreateDocument extends CreateRecord
                 $this->record->approvers()->create([
                     'approver_id' => $approver['approver_id'],
                     'step_order' => $stepOrder,
+                    'signature_cell' => $approver['signature_cell'] ?? null,
                 ]);
                 $stepOrder++;
             }

@@ -1,3 +1,13 @@
+function columnToLetter(col) {
+    let letter = '';
+    let temp = col;
+    while (temp >= 0) {
+        letter = String.fromCharCode(65 + (temp % 26)) + letter;
+        temp = Math.floor(temp / 26) - 1;
+    }
+    return letter;
+}
+
 function luckysheetToHtml() {
     const sheets = luckysheet.getAllSheets();
     const result = [];
@@ -17,6 +27,7 @@ function luckysheetToHtml() {
         const columnlen = currentConfig.columnlen || {};
         const rowlen = currentConfig.rowlen || {};
 
+        const sheetName = sheet.name;
 
         
         const merge = currentConfig.merge || {};
@@ -33,13 +44,13 @@ function luckysheetToHtml() {
         // Apply conditional formatting
         const conditionalStyles = applyConditionalFormatting(data, condFormat, maxRow, maxCol);
         
-        // คำนวณ total width
-        let totalWidth = 0;
-        for (let c = 0; c < maxCol; c++) {
-            totalWidth += columnlen[c] !== undefined ? columnlen[c] : 73;
-        }
+        // // คำนวณ total width
+        // let totalWidth = 0;
+        // for (let c = 0; c < maxCol; c++) {
+        //     totalWidth += columnlen[c] !== undefined ? columnlen[c] : 73;
+        // }
         
-        let html = '<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; table-layout: fixed; width: ' + totalWidth + 'px;">';
+        let html = '<table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; table-layout: fixed; ">';
 
         // Column widths
         html += '<colgroup>';
@@ -255,7 +266,10 @@ function luckysheetToHtml() {
                 const colspanAttr = colspan > 1 ? ' colspan="' + colspan + '"' : '';
                 const rowspanAttr = rowspan > 1 ? ' rowspan="' + rowspan + '"' : '';
                 
-                html += '<td' + colspanAttr + rowspanAttr + ' style="' + style + ' position: relative;">' + diagonalSVG + commentIndicator + iconContent + cellContent + '</td>';
+                const cellRef = columnToLetter(c) + (r + 1);
+                const dataCellAttr = ' data-cell="' + sheetName + ':' + cellRef + '"';
+                
+                html += '<td' + dataCellAttr + colspanAttr + rowspanAttr + ' style="' + style + ' position: relative;">' + diagonalSVG + commentIndicator + iconContent + cellContent + '</td>';
             }
             
             html += '</tr>';

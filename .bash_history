@@ -121,3 +121,5 @@ git add .
 git push cimmit -m "Fixd dragdrop"
 git commit -m "fixed dragdrop"
 exit
+php artisan migrate
+exit

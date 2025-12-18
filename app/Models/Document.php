@@ -17,6 +17,8 @@ class Document extends Model
         'content',
         'creator_id',
         'department_id',
+        'template_document_id',
+        'form_data',
         'status',
         'submitted_at',
         'approved_at',
@@ -29,6 +31,7 @@ class Document extends Model
             'status' => DocumentStatus::class,
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
+            'form_data' => 'array',
         ];
     }
 
@@ -40,6 +43,11 @@ class Document extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(TemplateDocument::class, 'template_document_id');
     }
 
     public function approvers(): HasMany
@@ -109,5 +117,85 @@ class Document extends Model
         }
 
         return 'none';
+    }
+
+    // ฟังก์ชันช่วยสำหรับ form data
+    public function getFormValue(string $sheet, string $cell): mixed
+    {
+        return $this->form_data[$sheet][$cell] ?? null;
+    }
+
+    public function setFormValue(string $sheet, string $cell, mixed $value): void
+    {
+        $formData = $this->form_data ?? [];
+        
+        if (!isset($formData[$sheet])) {
+            $formData[$sheet] = [];
+        }
+        
+        $formData[$sheet][$cell] = $value;
+        $this->form_data = $formData;
+    }
+
+    public function getSignatureData(string $sheet, string $cell): ?array
+    {
+        $value = $this->getFormValue($sheet, $cell);
+        
+        if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
+            return $value;
+        }
+        
+        return null;
+    }
+
+    public function setSignature(string $sheet, string $cell, int $approverId, ?string $signedAt = null): void
+    {
+        $this->setFormValue($sheet, $cell, [
+            'type' => 'signature',
+            'approver_id' => $approverId,
+            'signed_at' => $signedAt ?? now()->toISOString(),
+        ]);
+    }
+
+    public function renderWithData(): string
+    {
+        if (!$this->template) {
+            return $this->content;
+        }
+
+        $html = '';
+        $sheets = $this->template->content['sheets'] ?? [];
+
+        foreach ($sheets as $sheet) {
+            $sheetHtml = $sheet['html'];
+            $sheetName = $sheet['name'];
+            $formData = $this->form_data[$sheetName] ?? [];
+
+            // Replace form fields with actual data
+            foreach ($formData as $cell => $value) {
+                if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
+                    $approver = User::find($value['approver_id']);
+                    $signatureHtml = $approver ? 
+                        '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                        '<div style="font-weight:bold;">' . htmlspecialchars($approver->name) . '</div>' .
+                        '<div style="font-size:12px;color:#6b7280;">Signed at: ' . $value['signed_at'] . '</div>' .
+                        '</div>' : 
+                        '[Signature Pending]';
+                    
+                    $sheetHtml = str_replace('[signature cell="' . $cell . '"]', $signatureHtml, $sheetHtml);
+                } else {
+                    // Replace other form fields
+                    $sheetHtml = preg_replace(
+                        '/\[(?:text|email|tel|number|date|textarea|select|checkbox)\s+[^\]]+cell="' . preg_quote($cell) . '"[^\]]*\]/',
+                        htmlspecialchars($value),
+                        $sheetHtml
+                    );
+                }
+            }
+
+            $html .= $sheetHtml;
+        }
+
+        return $html;
     }
 }

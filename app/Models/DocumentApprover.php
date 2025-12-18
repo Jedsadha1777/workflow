@@ -14,6 +14,7 @@ class DocumentApprover extends Model
     protected $fillable = [
         'document_id',
         'approver_id',
+        'signature_cell',
         'step_order',
         'status',
         'comment',
@@ -47,5 +48,34 @@ class DocumentApprover extends Model
         }
 
         return $this->approver_id === $user->id && $this->status === ApprovalStatus::PENDING;
+    }
+
+    // บันทึก signature เมื่อ approve
+    public function approveWithSignature(): void
+    {
+        $this->update([
+            'status' => ApprovalStatus::APPROVED,
+            'approved_at' => now(),
+        ]);
+
+        // บันทึก signature ลง form_data ถ้ามี signature_cell
+        if ($this->signature_cell) {
+            [$sheet, $cell] = $this->parseSignatureCell();
+            
+            if ($sheet && $cell) {
+                $this->document->setSignature($sheet, $cell, $this->approver_id);
+                $this->document->save();
+            }
+        }
+    }
+
+    // แปลง signature_cell จาก "Sheet1:A5" เป็น ['Sheet1', 'A5']
+    protected function parseSignatureCell(): array
+    {
+        if (!$this->signature_cell || !str_contains($this->signature_cell, ':')) {
+            return [null, null];
+        }
+
+        return explode(':', $this->signature_cell, 2);
     }
 }
