@@ -98,31 +98,36 @@ class DocumentResource extends Resource
 
                 Forms\Components\Repeater::make('approvers')
                     ->relationship('approvers')
-                    ->mutateRelationshipDataBeforeCreateUsing(function (array $data, $livewire) {
-                        // ถ้ายังไม่มี record (create mode) ให้สร้าง draft ก่อน
-                        if (!$livewire->record) {
-                            $formData = $livewire->form->getState();
+                    ->addAction(
+                        fn(\Filament\Forms\Components\Actions\Action $action) => $action
+                            ->before(function ($livewire) {
+                                // ถ้ายังไม่มี record ให้สร้างก่อน
+                                if (!$livewire->record) {
+                                    $data = $livewire->form->getState();
 
-                            $document = \App\Models\Document::create([
-                                'title' => $formData['title'] ?? 'Draft',
-                                'template_document_id' => $formData['template_document_id'],
-                                'creator_id' => auth()->id(),
-                                'department_id' => auth()->user()->department_id,
-                                'content' => \App\Models\TemplateDocument::find($formData['template_document_id'])->content ?? [],
-                                'form_data' => json_decode($formData['form_data'] ?? '{}', true) ?: [],
-                                'status' => \App\Enums\DocumentStatus::DRAFT,
-                            ]);
+                                    $template = \App\Models\TemplateDocument::find($data['template_document_id']);
 
-                            // Set record และ redirect
-                            $livewire->record = $document;
+                                    $formData = isset($data['form_data']) && is_string($data['form_data'])
+                                        ? json_decode($data['form_data'], true) ?: []
+                                        : [];
 
-                            return redirect()->to(
-                                \App\Filament\App\Resources\DocumentResource::getUrl('edit', ['record' => $document])
-                            );
-                        }
+                                    $document = \App\Models\Document::create([
+                                        'title' => $data['title'] ?? 'Draft',
+                                        'template_document_id' => $data['template_document_id'],
+                                        'creator_id' => auth()->id(),
+                                        'department_id' => auth()->user()->department_id,
+                                        'content' => $template->content ?? [],
+                                        'form_data' => $formData,
+                                        'status' => \App\Enums\DocumentStatus::DRAFT,
+                                    ]);
 
-                        return $data;
-                    })
+                                    // Redirect to edit
+                                    return redirect()->to(
+                                        \App\Filament\App\Resources\DocumentResource::getUrl('edit', ['record' => $document])
+                                    );
+                                }
+                            })
+                    )
                     ->schema([
                         Forms\Components\Select::make('approver_id')
                             ->label('Approver')
@@ -158,6 +163,7 @@ class DocumentResource extends Resource
                     ->defaultItems(0)
                     ->disabled(fn($record) => $record && $record->status !== DocumentStatus::DRAFT && !auth()->user()->isAdmin())
                     ->columnSpanFull(),
+
 
 
                 Forms\Components\Hidden::make('creator_id')

@@ -144,3 +144,5 @@ php artisan optimize:clear
 php artisan optimize:clear
 php artisan optimize:clear
 exit
+tail -f larvle.log
+exit
