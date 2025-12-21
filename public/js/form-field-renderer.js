@@ -68,7 +68,7 @@
                 if (wireId) {
                     const component = window.Livewire.find(wireId);
                     if (component) {
-                        component.set('data.form_data', JSON.stringify(data));
+                        component.set('data.form_data', JSON.stringify(data), false);
                     }
                 }
             }

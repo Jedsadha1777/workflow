@@ -43,50 +43,50 @@ class DocumentResource extends Resource
                     ->disabled(fn($record) => $record && !$record->canBeEditedBy(auth()->user())),
 
                 Forms\Components\Placeholder::make('template_form')
-    ->label('Template Form')
-    ->columnSpanFull()
-    ->content(function ($get, $record) {
-        $templateId = $get('template_document_id');
-        if (!$templateId) {
-            return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
-        }
+                    ->label('Template Form')
+                    ->columnSpanFull()
+                    ->content(function ($get, $record) {
+                        $templateId = $get('template_document_id');
+                        if (!$templateId) {
+                            return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
+                        }
 
-        $template = \App\Models\TemplateDocument::find($templateId);
-        if (!$template || !$template->content) {
-            return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
-        }
+                        $template = \App\Models\TemplateDocument::find($templateId);
+                        if (!$template || !$template->content) {
+                            return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
+                        }
 
-        $content = is_string($template->content) ? json_decode($template->content, true) : $template->content;
-        if (!$content || !isset($content['sheets']) || empty($content['sheets'])) {
-            return new HtmlString('<p class="text-sm text-red-500">Invalid template content</p>');
-        }
+                        $content = is_string($template->content) ? json_decode($template->content, true) : $template->content;
+                        if (!$content || !isset($content['sheets']) || empty($content['sheets'])) {
+                            return new HtmlString('<p class="text-sm text-red-500">Invalid template content</p>');
+                        }
 
-        $formId = 'doc_form_' . ($record ? $record->id : 'new') . '_' . uniqid();
-        $existingFormData = ($record && $record->form_data) ? $record->form_data : [];
-        
-        // เพิ่ม x-cloak เพื่อซ่อนตอน mount
-        $html = '<div id="' . $formId . '" 
+                        $formId = 'doc_form_' . ($record ? $record->id : 'new') . '_' . uniqid();
+                        $existingFormData = ($record && $record->form_data) ? $record->form_data : [];
+
+                        // เพิ่ม x-cloak เพื่อซ่อนตอน mount
+                        $html = '<div id="' . $formId . '" 
                      class="space-y-6" 
                      wire:ignore
                      x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')"
                      x-init="init()"
                      x-cloak>';
 
-        foreach ($content['sheets'] as $sheet) {
-            $html .= '<div class="border rounded-lg p-4 bg-white">';
-            $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
-            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
-            $html .= '</div>';
-        }
+                        foreach ($content['sheets'] as $sheet) {
+                            $html .= '<div class="border rounded-lg p-4 bg-white">';
+                            $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
+                            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
+                            $html .= '</div>';
+                        }
 
-        $html .= '</div>';
-        
-        // เพิ่ม style สำหรับ x-cloak
-        $html .= '<style>[x-cloak] { display: none !important; }</style>';
+                        $html .= '</div>';
 
-        return new HtmlString($html);
-    })
-    ->visible(fn($get) => $get('template_document_id')),
+                        // เพิ่ม style สำหรับ x-cloak
+                        $html .= '<style>[x-cloak] { display: none !important; }</style>';
+
+                        return new HtmlString($html);
+                    })
+                    ->visible(fn($get) => $get('template_document_id')),
 
                 Forms\Components\Hidden::make('content')
                     ->dehydrated(false)
