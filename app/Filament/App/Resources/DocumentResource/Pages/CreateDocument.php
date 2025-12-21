@@ -5,50 +5,72 @@ namespace App\Filament\App\Resources\DocumentResource\Pages;
 use App\Enums\DocumentStatus;
 use App\Filament\App\Resources\DocumentResource;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Notifications\Notification;
 
 class CreateDocument extends CreateRecord
 {
     protected static string $resource = DocumentResource::class;
     protected static bool $canCreateAnother = false;
 
-    // Hook ที่ทำงานก่อน Repeater เพิ่ม item
-    public function beforeValidate(): void
+    // ใช้ Livewire hook ที่ทำงานก่อน state update
+    public function updatedData($value, $key): void
     {
-        // ถ้ามี approvers และยังไม่มี record ให้สร้าง draft ก่อน
-        if (!$this->record && !empty($this->data['approvers'])) {
+        // เช็คว่ามีการเพิ่ม approver
+        if ($key === 'approvers' && !$this->record && !empty($this->data['approvers'])) {
+            \Log::info('Add approver detected, saving draft...');
             $this->saveDraftBeforeApprovers();
         }
     }
 
     protected function saveDraftBeforeApprovers(): void
     {
-        $data = $this->form->getState();
-        
-        $data['creator_id'] = auth()->id();
-        $data['department_id'] = auth()->user()->department_id;
-        $data['status'] = DocumentStatus::DRAFT;
-        
-        if (isset($data['template_document_id'])) {
-            $template = \App\Models\TemplateDocument::find($data['template_document_id']);
-            if ($template && $template->content) {
-                $data['content'] = $template->content;
+        try {
+            $data = $this->form->getState();
+            
+            \Log::info('Form data:', $data);
+            
+            $data['creator_id'] = auth()->id();
+            $data['department_id'] = auth()->user()->department_id;
+            $data['status'] = DocumentStatus::DRAFT;
+            
+            if (isset($data['template_document_id'])) {
+                $template = \App\Models\TemplateDocument::find($data['template_document_id']);
+                if ($template && $template->content) {
+                    $data['content'] = $template->content;
+                }
             }
+            
+            if (isset($data['form_data']) && is_string($data['form_data'])) {
+                $parsed = json_decode($data['form_data'], true);
+                $data['form_data'] = $parsed ?: [];
+            } else {
+                $data['form_data'] = [];
+            }
+            
+            unset($data['approvers']);
+            
+            $document = static::getModel()::create($data);
+            
+            \Log::info('Draft created:', ['id' => $document->id]);
+            
+            Notification::make()
+                ->success()
+                ->title('Draft Saved')
+                ->body('Document saved as draft')
+                ->send();
+            
+            // Redirect
+            $this->redirect(static::getResource()::getUrl('edit', ['record' => $document]));
+            
+        } catch (\Exception $e) {
+            \Log::error('Save draft failed:', ['error' => $e->getMessage()]);
+            
+            Notification::make()
+                ->danger()
+                ->title('Error')
+                ->body('Failed to save draft: ' . $e->getMessage())
+                ->send();
         }
-        
-        if (isset($data['form_data']) && is_string($data['form_data'])) {
-            $parsed = json_decode($data['form_data'], true);
-            $data['form_data'] = $parsed ?: [];
-        } else {
-            $data['form_data'] = [];
-        }
-        
-        unset($data['approvers']);
-        
-        // สร้าง record
-        $this->record = static::getModel()::create($data);
-        
-        // Redirect to edit page
-        $this->redirect(static::getResource()::getUrl('edit', ['record' => $this->record]));
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array
