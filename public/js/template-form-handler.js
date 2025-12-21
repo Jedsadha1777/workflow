@@ -6,17 +6,41 @@ window.templateFormHandler = function(formId, existingData) {
         formData: {},
         
         init() {
-            // ถ้า init แล้วไม่ต้อง render ใหม่
-            if (this.initialized) {
-                console.log('Already initialized, skipping...');
-                return;
-            }
-            
             console.log('Alpine init for:', this.formId);
+            
+            // ดึง data จาก Livewire state ก่อน (กรณี re-mount)
+            this.restoreFromLivewire();
+            
             this.$nextTick(() => {
                 this.renderFields();
                 this.setupEventListeners();
             });
+        },
+        
+        restoreFromLivewire() {
+            // ดึง form_data จาก Livewire component
+            const wireId = this.$el.closest('[wire\\:id]')?.getAttribute('wire:id');
+            if (wireId && window.Livewire) {
+                const component = window.Livewire.find(wireId);
+                if (component && component.get('data.form_data')) {
+                    try {
+                        const savedData = JSON.parse(component.get('data.form_data'));
+                        if (savedData && Object.keys(savedData).length > 0) {
+                            this.formData = savedData;
+                            console.log('Restored from Livewire:', this.formData);
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('Failed to restore from Livewire:', e);
+                    }
+                }
+            }
+            
+            // Fallback ไปใช้ existingData
+            if (this.existingData && Object.keys(this.existingData).length > 0) {
+                this.formData = JSON.parse(JSON.stringify(this.existingData));
+                console.log('Using existingData:', this.formData);
+            }
         },
         
         renderFields() {
@@ -46,13 +70,11 @@ window.templateFormHandler = function(formId, existingData) {
                     }
                 });
                 
-                // Load existing data ครั้งเดียวตอน init
-                if (this.existingData && Object.keys(this.existingData).length > 0) {
-                    this.formData = JSON.parse(JSON.stringify(this.existingData));
+                // Load data to fields
+                if (Object.keys(this.formData).length > 0) {
                     this.loadDataToFields();
                 }
                 
-                // Mark as initialized เพื่อไม่ให้ render ซ้ำ
                 this.initialized = true;
                 console.log('Template initialized with data:', this.formData);
             };
@@ -113,12 +135,17 @@ window.templateFormHandler = function(formId, existingData) {
                 }
             });
             
-            // Update local state
             this.formData = data;
             console.log('Collected form data:', data);
             
-            // Sync to Livewire (ไม่ trigger refresh)
-            this.$wire.set('data.form_data', JSON.stringify(data), false);
+            // Sync to Livewire WITHOUT triggering refresh
+            const wireId = this.$el.closest('[wire\\:id]')?.getAttribute('wire:id');
+            if (wireId && window.Livewire) {
+                const component = window.Livewire.find(wireId);
+                if (component) {
+                    component.set('data.form_data', JSON.stringify(data), false);
+                }
+            }
         }
     };
 };
