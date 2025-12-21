@@ -98,6 +98,31 @@ class DocumentResource extends Resource
 
                 Forms\Components\Repeater::make('approvers')
                     ->relationship('approvers')
+                    ->mutateRelationshipDataBeforeCreateUsing(function (array $data, $livewire) {
+                        // ถ้ายังไม่มี record (create mode) ให้สร้าง draft ก่อน
+                        if (!$livewire->record) {
+                            $formData = $livewire->form->getState();
+
+                            $document = \App\Models\Document::create([
+                                'title' => $formData['title'] ?? 'Draft',
+                                'template_document_id' => $formData['template_document_id'],
+                                'creator_id' => auth()->id(),
+                                'department_id' => auth()->user()->department_id,
+                                'content' => \App\Models\TemplateDocument::find($formData['template_document_id'])->content ?? [],
+                                'form_data' => json_decode($formData['form_data'] ?? '{}', true) ?: [],
+                                'status' => \App\Enums\DocumentStatus::DRAFT,
+                            ]);
+
+                            // Set record และ redirect
+                            $livewire->record = $document;
+
+                            return redirect()->to(
+                                \App\Filament\App\Resources\DocumentResource::getUrl('edit', ['record' => $document])
+                            );
+                        }
+
+                        return $data;
+                    })
                     ->schema([
                         Forms\Components\Select::make('approver_id')
                             ->label('Approver')
@@ -127,12 +152,13 @@ class DocumentResource extends Resource
                             ->helperText('Format: SheetName:CellReference'),
 
                         Forms\Components\Hidden::make('step_order')
-                            ->default(fn($get, $livewire) => $livewire->data['approvers'] ? count($livewire->data['approvers']) : 1),
+                            ->default(fn($get, $livewire) => count($livewire->data['approvers'] ?? []) + 1),
                     ])
-                    ->orderColumn('step_order')
+                    ->addActionLabel('Add Approver')
                     ->defaultItems(0)
                     ->disabled(fn($record) => $record && $record->status !== DocumentStatus::DRAFT && !auth()->user()->isAdmin())
                     ->columnSpanFull(),
+
 
                 Forms\Components\Hidden::make('creator_id')
                     ->default(auth()->id()),
