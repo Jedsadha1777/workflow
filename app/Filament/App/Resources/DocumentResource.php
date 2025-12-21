@@ -51,7 +51,7 @@ class DocumentResource extends Resource
                             return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
                         }
 
-                        $template = \App\Models\TemplateDocument::find($templateId);
+                        $template = TemplateDocument::find($templateId);
                         if (!$template || !$template->content) {
                             return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
                         }
@@ -67,12 +67,10 @@ class DocumentResource extends Resource
                             $existingFormData = is_array($record->form_data) ? $record->form_data : json_decode($record->form_data, true);
                         }
 
-                        // เพิ่ม x-cloak เพื่อซ่อนตอน mount
                         $html = '<div id="' . $formId . '" 
                      class="space-y-6" 
                      wire:ignore
                      x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')"
-                     x-init="init()"
                      x-cloak>';
 
                         foreach ($content['sheets'] as $sheet) {
@@ -83,8 +81,6 @@ class DocumentResource extends Resource
                         }
 
                         $html .= '</div>';
-
-                        // เพิ่ม style สำหรับ x-cloak
                         $html .= '<style>[x-cloak] { display: none !important; }</style>';
 
                         return new HtmlString($html);
@@ -98,76 +94,6 @@ class DocumentResource extends Resource
                 Forms\Components\Hidden::make('form_data')
                     ->dehydrated(true)
                     ->default('{}'),
-
-                Forms\Components\Repeater::make('approvers')
-                    ->relationship('approvers')
-                    ->addAction(
-                        fn(\Filament\Forms\Components\Actions\Action $action) => $action
-                            ->before(function ($livewire) {
-                                // ถ้ายังไม่มี record ให้สร้างก่อน
-                                if (!$livewire->record) {
-                                    $data = $livewire->form->getState();
-
-                                    $template = \App\Models\TemplateDocument::find($data['template_document_id']);
-
-                                    $formData = isset($data['form_data']) && is_string($data['form_data'])
-                                        ? json_decode($data['form_data'], true) ?: []
-                                        : [];
-
-                                    $document = \App\Models\Document::create([
-                                        'title' => $data['title'] ?? 'Draft',
-                                        'template_document_id' => $data['template_document_id'],
-                                        'creator_id' => auth()->id(),
-                                        'department_id' => auth()->user()->department_id,
-                                        'content' => $template->content ?? [],
-                                        'form_data' => $formData,
-                                        'status' => \App\Enums\DocumentStatus::DRAFT,
-                                    ]);
-
-                                    // Redirect to edit
-                                    return redirect()->to(
-                                        \App\Filament\App\Resources\DocumentResource::getUrl('edit', ['record' => $document])
-                                    );
-                                }
-                            })
-                    )
-                    ->schema([
-                        Forms\Components\Select::make('approver_id')
-                            ->label('Approver')
-                            ->options(function () {
-                                return User::whereIn('role', \App\Enums\UserRole::userRoles())
-                                    ->pluck('name', 'id');
-                            })
-                            ->required()
-                            ->searchable()
-                            ->disabled(function ($record, $get) {
-                                if (!$record) {
-                                    return false;
-                                }
-
-                                $user = auth()->user();
-
-                                if ($user->isAdmin()) {
-                                    return false;
-                                }
-
-                                return !$record->canBeChangedBy($user);
-                            }),
-
-                        Forms\Components\TextInput::make('signature_cell')
-                            ->label('Signature Cell (e.g., Sheet1:A5)')
-                            ->placeholder('Sheet1:A5')
-                            ->helperText('Format: SheetName:CellReference'),
-
-                        Forms\Components\Hidden::make('step_order')
-                            ->default(fn($get, $livewire) => count($livewire->data['approvers'] ?? []) + 1),
-                    ])
-                    ->addActionLabel('Add Approver')
-                    ->defaultItems(0)
-                    ->disabled(fn($record) => $record && $record->status !== DocumentStatus::DRAFT && !auth()->user()->isAdmin())
-                    ->columnSpanFull(),
-
-
 
                 Forms\Components\Hidden::make('creator_id')
                     ->default(auth()->id()),
@@ -204,18 +130,37 @@ class DocumentResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn($record) => $record->canBeEditedBy(auth()->user())),
+                
+                // Setup Approval (ใหม่)
+                Tables\Actions\Action::make('setup_approval')
+                    ->icon('heroicon-o-user-group')
+                    ->color('info')
+                    ->url(fn($record) => static::getUrl('setup-approval', ['record' => $record]))
+                    ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
+                
+                // Submit for Approval
                 Tables\Actions\Action::make('submit')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(function (Document $record) {
+                        // ต้องมี approver อย่างน้อย 1 คน
+                        if ($record->approvers()->count() === 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('Cannot Submit')
+                                ->body('Please setup approvers first')
+                                ->send();
+                            return;
+                        }
+                        
                         $record->update([
                             'status' => DocumentStatus::PENDING,
                             'submitted_at' => now(),
                             'current_step' => 1,
                         ]);
                     })
-                    ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
+                    ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id() && $record->approvers()->count() > 0),
             ])
             ->modifyQueryUsing(function (Builder $query) {
                 $user = auth()->user();
@@ -246,6 +191,7 @@ class DocumentResource extends Resource
             'create' => Pages\CreateDocument::route('/create'),
             'edit' => Pages\EditDocument::route('/{record}/edit'),
             'view' => Pages\ViewDocument::route('/{record}'),
+            'setup-approval' => Pages\SetupApproval::route('/{record}/setup-approval'), // ใหม่
         ];
     }
 }

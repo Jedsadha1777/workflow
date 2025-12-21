@@ -146,3 +146,8 @@ php artisan optimize:clear
 exit
 tail -f larvle.log
 exit
+php artisan make:migrate add_document_approvers
+php artisan make:migration add_document_approvers
+php artisan migrate
+php artisan optimize:clear
+exit
