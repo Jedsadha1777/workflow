@@ -1,4 +1,3 @@
-// Form Field Renderer for Filament + Livewire v3
 (function() {
     'use strict';
     
@@ -38,6 +37,13 @@
     
     function processTemplateContents() {
         document.querySelectorAll('.template-content[data-processed="false"]').forEach(content => {
+            // ตรวจสอบว่า content อยู่ใน Alpine component หรือไม่
+            const alpineParent = content.closest('[x-data]');
+            if (alpineParent) {
+                console.log('Skipping Alpine-managed content');
+                return; // Skip ถ้าอยู่ใน Alpine
+            }
+            
             const originalHtml = content.innerHTML;
             content.innerHTML = renderFormFields(originalHtml);
             content.setAttribute('data-processed', 'true');
@@ -46,6 +52,13 @@
     
     function setupFormListener(formElement) {
         if (!formElement || formElement.dataset.listenerAttached === 'true') return;
+        
+        // ตรวจสอบว่า form อยู่ใน Alpine component หรือไม่
+        const alpineParent = formElement.closest('[x-data]');
+        if (alpineParent) {
+            console.log('Skipping Alpine-managed form');
+            return; // Skip ถ้าอยู่ใน Alpine
+        }
         
         formElement.addEventListener('change', function(e) {
             if (!e.target.matches('input, select, textarea')) return;
@@ -62,7 +75,6 @@
                 }
             });
             
-            // Livewire v3 method
             if (window.Livewire) {
                 const wireId = formElement.closest('[wire\\:id]')?.getAttribute('wire:id');
                 if (wireId) {
@@ -114,6 +126,12 @@
         processTemplateContents();
         
         document.querySelectorAll('[id^="doc_form_"]').forEach(form => {
+            // Skip ถ้า form อยู่ใน Alpine component
+            if (form.closest('[x-data]')) {
+                console.log('Skipping Alpine-managed form:', form.id);
+                return;
+            }
+            
             setupFormListener(form);
             loadExistingData(form);
         });
@@ -125,6 +143,11 @@
         mutations.forEach(mutation => {
             mutation.addedNodes.forEach(node => {
                 if (node.nodeType === 1) {
+                    // ตรวจสอบว่า node ไม่อยู่ใน Alpine component
+                    if (node.closest && node.closest('[x-data]')) {
+                        return; // Skip
+                    }
+                    
                     if (node.classList?.contains('template-content') || 
                         node.querySelector?.('.template-content') ||
                         node.id?.startsWith('doc_form_')) {
