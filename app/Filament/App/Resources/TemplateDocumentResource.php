@@ -66,7 +66,7 @@ class TemplateDocumentResource extends Resource
                         $wrapperId = 'wrapper_' . $id;
 
                         return new HtmlString(<<<HTML
-<div id="{$wrapperId}">
+<div id="{$wrapperId}" wire:ignore>
 <style>
 #{$id} { scroll-margin: 0 !important; }
 #{$id} * { scroll-margin: 0 !important; }
@@ -98,19 +98,64 @@ class TemplateDocumentResource extends Resource
 <h3 class="text-lg font-semibold">HTML Preview</h3>
 <div id="preview_sheets_{$id}"></div>
 </div>
-<script src="{$editorJsUrl}"></script>
 <script>
-   
-initLuckysheetEditor('{$wrapperId}', {
-    containerId: '{$id}',
-    statusId: 'status_{$id}',
-    fullscreenBtnId: 'fullscreen_btn_{$id}',
-    previewBtnId: 'preview_btn_{$id}',
-    reloadBtnId: 'reload_btn_{$id}',
-    previewId: 'preview_{$id}',
-    previewSheetsId: 'preview_sheets_{$id}',
-    fileUrl: '{$fileUrl}'
-});
+(function() {
+    let scriptLoaded = false;
+    let retryCount = 0;
+    const maxRetries = 20;
+    
+    function loadEditorScript() {
+        if (scriptLoaded) return;
+        
+        const existingScript = document.querySelector('script[src="{$editorJsUrl}"]');
+        if (!existingScript) {
+            const script = document.createElement('script');
+            script.src = '{$editorJsUrl}';
+            script.onload = function() {
+                scriptLoaded = true;
+                console.log('Luckysheet editor script loaded');
+                initEditor();
+            };
+            script.onerror = function() {
+                console.error('Failed to load luckysheet-editor.js');
+            };
+            document.head.appendChild(script);
+        } else {
+            scriptLoaded = true;
+            initEditor();
+        }
+    }
+    
+    function initEditor() {
+        if (typeof initLuckysheetEditor === 'function') {
+            console.log('Initializing Luckysheet editor...');
+            initLuckysheetEditor('{$wrapperId}', {
+                containerId: '{$id}',
+                statusId: 'status_{$id}',
+                fullscreenBtnId: 'fullscreen_btn_{$id}',
+                previewBtnId: 'preview_btn_{$id}',
+                reloadBtnId: 'reload_btn_{$id}',
+                previewId: 'preview_{$id}',
+                previewSheetsId: 'preview_sheets_{$id}',
+                fileUrl: '{$fileUrl}'
+            });
+        } else {
+            retryCount++;
+            if (retryCount < maxRetries) {
+                console.log('Waiting for initLuckysheetEditor... (attempt ' + retryCount + ')');
+                setTimeout(initEditor, 200);
+            } else {
+                console.error('Failed to initialize: initLuckysheetEditor not found after ' + maxRetries + ' attempts');
+            }
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadEditorScript);
+    } else {
+        loadEditorScript();
+    }
+})();
 </script>
 </div>
 HTML

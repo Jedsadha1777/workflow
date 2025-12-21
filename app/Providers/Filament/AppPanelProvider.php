@@ -63,6 +63,7 @@ class AppPanelProvider extends PanelProvider
 
         FilamentAsset::register([
             Js::make('form-field-renderer', asset('js/form-field-renderer.js')),
+            Js::make('template-form-handler', asset('js/template-form-handler.js')),
         ], package: 'app');
     }
 }

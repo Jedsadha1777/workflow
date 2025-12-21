@@ -137,3 +137,6 @@ php artisan otimze:clear
 php artisan optimze:clear
 php artisan optimize
 exit
+php artisan migrate
+php artisan optimize
+exit

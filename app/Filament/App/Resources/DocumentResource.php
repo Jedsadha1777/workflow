@@ -34,15 +34,7 @@ class DocumentResource extends Resource
                     ->preload()
                     ->live()
                     ->afterStateUpdated(function ($state, Forms\Set $set) {
-                        $set('form_data', []);
-                        
-                        // เก็บ template content ลง content field
-                        if ($state) {
-                            $template = \App\Models\TemplateDocument::find($state);
-                            if ($template && $template->content) {
-                                $set('content', json_encode($template->content));
-                            }
-                        }
+                        $set('form_data', '{}');
                     })
                     ->disabled(fn($record) => $record !== null),
 
@@ -51,59 +43,58 @@ class DocumentResource extends Resource
                     ->disabled(fn($record) => $record && !$record->canBeEditedBy(auth()->user())),
 
                 Forms\Components\Placeholder::make('template_form')
-                    ->label('Template Form')
-                    ->columnSpanFull()
-                    ->content(function ($get, $record) {
-                        $templateId = $get('template_document_id');
-                        if (!$templateId) {
-                            return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
-                        }
+    ->label('Template Form')
+    ->columnSpanFull()
+    ->content(function ($get, $record) {
+        $templateId = $get('template_document_id');
+        if (!$templateId) {
+            return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
+        }
 
-                        $template = \App\Models\TemplateDocument::find($templateId);
-                        if (!$template) {
-                            return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
-                        }
+        $template = \App\Models\TemplateDocument::find($templateId);
+        if (!$template || !$template->content) {
+            return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
+        }
 
-                        if (!$template->content) {
-                            return new HtmlString('<p class="text-sm text-red-500">Content is null</p>');
-                        }
+        $content = is_string($template->content) ? json_decode($template->content, true) : $template->content;
+        if (!$content || !isset($content['sheets']) || empty($content['sheets'])) {
+            return new HtmlString('<p class="text-sm text-red-500">Invalid template content</p>');
+        }
 
-                        $content = $template->content;
-                        if (is_string($content)) {
-                            $content = json_decode($content, true);
-                            if (!$content) {
-                                return new HtmlString('<p class="text-sm text-red-500">Invalid JSON in content field</p>');
-                            }
-                        }
+        $formId = 'doc_form_' . ($record ? $record->id : 'new') . '_' . uniqid();
+        $existingFormData = ($record && $record->form_data) ? $record->form_data : [];
+        
+        // เพิ่ม x-cloak เพื่อซ่อนตอน mount
+        $html = '<div id="' . $formId . '" 
+                     class="space-y-6" 
+                     wire:ignore
+                     x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')"
+                     x-init="init()"
+                     x-cloak>';
 
-                        if (!isset($content['sheets'])) {
-                            return new HtmlString('<p class="text-sm text-red-500">No sheets key</p>');
-                        }
+        foreach ($content['sheets'] as $sheet) {
+            $html .= '<div class="border rounded-lg p-4 bg-white">';
+            $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
+            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
+            $html .= '</div>';
+        }
 
-                        $sheets = $content['sheets'];
-                        if (empty($sheets)) {
-                            return new HtmlString('<p class="text-sm text-red-500">Sheets is empty</p>');
-                        }
+        $html .= '</div>';
+        
+        // เพิ่ม style สำหรับ x-cloak
+        $html .= '<style>[x-cloak] { display: none !important; }</style>';
 
-                        $formId = 'doc_form_' . ($record ? $record->id : 'new');
-                        $html = '<div id="' . $formId . '" class="space-y-6" wire:ignore>';
-
-                        foreach ($sheets as $sheet) {
-                            $html .= '<div class="border rounded-lg p-4 bg-white">';
-                            $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
-                            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
-                            $html .= '</div>';
-                        }
-
-                        $html .= '</div>';
-
-                        return new HtmlString($html);
-                    })
-                    ->visible(fn($get) => $get('template_document_id')),
+        return new HtmlString($html);
+    })
+    ->visible(fn($get) => $get('template_document_id')),
 
                 Forms\Components\Hidden::make('content')
-                    ->dehydrated(true)
+                    ->dehydrated(false)
                     ->default(''),
+
+                Forms\Components\Hidden::make('form_data')
+                    ->dehydrated(true)
+                    ->default('{}'),
 
                 Forms\Components\Repeater::make('approvers')
                     ->relationship('approvers')
@@ -148,11 +139,6 @@ class DocumentResource extends Resource
 
                 Forms\Components\Hidden::make('department_id')
                     ->default(auth()->user()->department_id),
-
-                Forms\Components\Hidden::make('form_data')
-                    ->extraAttributes(['data-form-data' => 'true'])
-                    ->dehydrated(true)
-                    ->default('{}'),
             ]);
     }
 

@@ -2,7 +2,6 @@
 (function() {
     'use strict';
     
-    // Render CF7-style shortcodes to HTML form fields
     function renderFormFields(html) {
         return html.replace(/\[(text|email|tel|number|date|textarea|select|checkbox|signature)(\*?)\s+([^\s\]]+)(?:\s+cell="([^"]+)")?(?:\s+first_as_label)?(?:\s+(.*?))?\]/g, function(match, type, required, name, cell, options) {
             const cellAttr = cell ? ' data-cell="' + cell + '"' : '';
@@ -37,7 +36,6 @@
         });
     }
     
-    // Process template content containers
     function processTemplateContents() {
         document.querySelectorAll('.template-content[data-processed="false"]').forEach(content => {
             const originalHtml = content.innerHTML;
@@ -46,7 +44,6 @@
         });
     }
     
-    // Setup form data change listener
     function setupFormListener(formElement) {
         if (!formElement || formElement.dataset.listenerAttached === 'true') return;
         
@@ -65,26 +62,63 @@
                 }
             });
             
-            const textarea = document.querySelector('textarea[data-form-data="true"]');
-            if (textarea) {
-                textarea.value = JSON.stringify(data);
-                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            // Livewire v3 method
+            if (window.Livewire) {
+                const wireId = formElement.closest('[wire\\:id]')?.getAttribute('wire:id');
+                if (wireId) {
+                    const component = window.Livewire.find(wireId);
+                    if (component) {
+                        component.set('data.form_data', JSON.stringify(data));
+                    }
+                }
             }
         }, true);
         
         formElement.dataset.listenerAttached = 'true';
     }
     
-    // Initialize all template forms
+    function loadExistingData(formElement) {
+        const existingDataAttr = formElement.dataset.existingData;
+        if (!existingDataAttr) return;
+        
+        try {
+            const decoded = document.createElement('textarea');
+            decoded.innerHTML = existingDataAttr;
+            const existingData = JSON.parse(decoded.value);
+            
+            if (existingData && Object.keys(existingData).length > 0) {
+                Object.keys(existingData).forEach(sheet => {
+                    Object.keys(existingData[sheet]).forEach(cell => {
+                        const value = existingData[sheet][cell];
+                        const cellRef = sheet + ':' + cell;
+                        const field = formElement.querySelector('[data-cell="' + cellRef + '"]');
+                        
+                        if (field) {
+                            if (field.type === 'checkbox') {
+                                field.checked = value;
+                            } else if (field.tagName === 'SELECT') {
+                                field.value = value;
+                            } else if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+                                field.value = value;
+                            }
+                        }
+                    });
+                });
+            }
+        } catch (e) {
+            console.error('Failed to load existing data:', e);
+        }
+    }
+    
     function initTemplateForms() {
         processTemplateContents();
         
         document.querySelectorAll('[id^="doc_form_"]').forEach(form => {
             setupFormListener(form);
+            loadExistingData(form);
         });
     }
     
-    // Watch for DOM changes (Livewire morphs)
     const observer = new MutationObserver(function(mutations) {
         let shouldInit = false;
         
@@ -92,7 +126,8 @@
             mutation.addedNodes.forEach(node => {
                 if (node.nodeType === 1) {
                     if (node.classList?.contains('template-content') || 
-                        node.querySelector?.('.template-content')) {
+                        node.querySelector?.('.template-content') ||
+                        node.id?.startsWith('doc_form_')) {
                         shouldInit = true;
                     }
                 }
@@ -104,24 +139,20 @@
         }
     });
     
-    // Start observing
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
     
-    // Initialize on load
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initTemplateForms);
     } else {
         initTemplateForms();
     }
     
-    // Livewire v3 hooks
     document.addEventListener('livewire:navigated', initTemplateForms);
     document.addEventListener('livewire:load', initTemplateForms);
     
-    // Export for manual usage if needed
     window.renderFormFields = renderFormFields;
     window.initTemplateForms = initTemplateForms;
 })();
