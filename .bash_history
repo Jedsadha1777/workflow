@@ -151,3 +151,5 @@ php artisan make:migration add_document_approvers
 php artisan migrate
 php artisan optimize:clear
 exit
+php artisan optimize:clear
+exit

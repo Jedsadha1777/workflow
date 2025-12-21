@@ -36,7 +36,6 @@ class ViewDocument extends ViewRecord
         ];
 
         if ($viewType === 'full') {
-            // แสดง rendered content ใน Section
             $schema[] = Infolists\Components\Section::make('Document Content')
                 ->schema([
                     Infolists\Components\TextEntry::make('rendered_html')
@@ -46,7 +45,6 @@ class ViewDocument extends ViewRecord
                                 return '<p class="text-gray-500">No content available</p>';
                             }
 
-                            // Decode content (ถ้าเป็น string ให้ decode ก่อน)
                             $content = $record->content;
                             if (is_string($content)) {
                                 $content = json_decode($content, true);
@@ -59,29 +57,90 @@ class ViewDocument extends ViewRecord
                             $sheets = $content['sheets'];
                             $formData = $record->form_data ?? [];
 
-                            $html = '<div class="space-y-6">';
-                            
-                            // Debug info (แสดงในโหมด dev)
-                            if (config('app.debug')) {
-                                $html .= '<div class="bg-blue-50 border border-blue-200 rounded p-3 text-sm mb-4">';
-                                $html .= '<strong>Debug Info:</strong><br>';
-                                $html .= 'Sheets: ' . count($sheets) . '<br>';
-                                $html .= 'Form Data: ' . (empty($formData) ? 'Empty' : json_encode($formData)) . '<br>';
-                                $html .= '</div>';
+                            // CSS
+                            $html = '<style>
+                            .document-viewer {
+                                margin-bottom: 20px;
                             }
+                            .zoom-controls {
+                                display: flex;
+                                gap: 8px;
+                                align-items: center;
+                                margin-bottom: 16px;
+                            }
+                            .zoom-btn {
+                                width: 32px;
+                                height: 32px;
+                                border: 1px solid #d1d5db;
+                                background: white;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                                color: #374151;
+                                transition: all 0.2s;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            }
+                            .zoom-btn:hover {
+                                background: #f3f4f6;
+                                border-color: #9ca3af;
+                            }
+                            .zoom-level {
+                                font-size: 14px;
+                                color: #6b7280;
+                                min-width: 50px;
+                                text-align: center;
+                            }
+                            .document-content-wrapper {
+                                max-height: 600px;
+                                overflow: auto;
+                                border: 1px solid #e5e7eb;
+                                border-radius: 6px;
+                                padding: 16px;
+                                background: #fafafa;
+                            }
+                            .document-zoom-wrapper {
+                                transform-origin: top left;
+                                transition: transform 0.2s;
+                            }
+                            .document-zoom-wrapper table {
+                                border-collapse: collapse;
+                                line-height: 1.3;
+                            }
+                            .document-zoom-wrapper td,
+                            .document-zoom-wrapper th {
+                                border: 1px solid #d1d5db;
+                                padding: 8px;
+                                line-height: 1.3;
+                            }
+                            </style>';
+                            
+                            $html .= '<div class="document-viewer">';
+                            
+                            // Zoom controls
+                            $html .= '<div class="zoom-controls">';
+                            $html .= '<button type="button" class="zoom-btn" onclick="documentZoomOut()" title="Zoom Out">−</button>';
+                            $html .= '<span class="zoom-level" id="doc-zoom-level">100%</span>';
+                            $html .= '<button type="button" class="zoom-btn" onclick="documentZoomIn()" title="Zoom In">+</button>';
+                            $html .= '<button type="button" class="zoom-btn" onclick="documentZoomReset()" title="Reset Zoom" style="font-size: 18px;">⟲</button>';
+                            $html .= '</div>';
+                            
+                            $html .= '<div class="document-content-wrapper">';
+                            $html .= '<div id="document-zoom-wrapper" class="document-zoom-wrapper">';
+                            $html .= '<div class="space-y-6">';
                             
                             foreach ($sheets as $sheet) {
                                 $html .= '<div class="border rounded-lg p-4 bg-white">';
                                 $html .= '<h4 class="font-semibold mb-3 text-gray-800">' . htmlspecialchars($sheet['name']) . '</h4>';
                                 
-                                // ดึง HTML จาก sheet
                                 $sheetHtml = $sheet['html'];
                                 $sheetName = $sheet['name'];
                                 
-                                // แทนค่า form fields ด้วยข้อมูลที่กรอก (ถ้ามี)
+                                // แทนค่า form fields
                                 if (!empty($formData) && isset($formData[$sheetName])) {
                                     foreach ($formData[$sheetName] as $cell => $value) {
-                                        // ถ้าเป็น signature
                                         if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                                             $approver = \App\Models\User::find($value['approver_id']);
                                             $signatureHtml = $approver ? 
@@ -91,24 +150,19 @@ class ViewDocument extends ViewRecord
                                                 '</div>' : 
                                                 '<div style="border:2px dashed #d1d5db;padding:10px;text-align:center;color:#9ca3af;">[Signature Pending]</div>';
                                             
-                                            // แทนที่ [signature ...] ใน td
                                             $sheetHtml = preg_replace_callback(
                                                 '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>(.*?)<\/td>/s',
-                                                function ($matches) use ($signatureHtml) {
+                                                function($matches) use ($signatureHtml) {
                                                     return '<td' . $matches[1] . '>' . $signatureHtml . '</td>';
                                                 },
                                                 $sheetHtml
                                             );
                                         } else {
-                                            // แทนที่ form fields อื่นๆ (text, email, etc.)
                                             $escapedValue = htmlspecialchars($value);
-                                            
-                                            // แทนที่ใน td ที่มี data-cell
                                             $sheetHtml = preg_replace_callback(
-                                                '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>(.*?)<\/td>/s',
-                                                function ($matches) use ($escapedValue) {
-                                                    // แทนที่เนื้อหาทั้งหมดใน td
-                                                    return '<td' . $matches[1] . '><div style="background:#fef3c7;padding:4px 8px;border-radius:4px;"><strong style="color:#92400e;">' . $escapedValue . '</strong></div></td>';
+                                                '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
+                                                function($matches) use ($escapedValue) {
+                                                    return '<td' . $matches[1] . '><div style="padding:4px;"><strong>' . $escapedValue . '</strong></div></td>';
                                                 },
                                                 $sheetHtml
                                             );
@@ -116,13 +170,91 @@ class ViewDocument extends ViewRecord
                                     }
                                 }
                                 
-                                $html .= '<div class="overflow-x-auto" style="max-width:100%;">';
-                                $html .= '<div style="display:inline-block;min-width:100%;">' . $sheetHtml . '</div>';
-                                $html .= '</div>';
+                                $html .= $sheetHtml;
                                 $html .= '</div>';
                             }
                             
-                            $html .= '</div>';
+                            $html .= '</div></div></div></div>';
+                            
+                            // JavaScript
+                            $html .= '<script>
+                            let currentDocZoom = 1.0;
+                            
+                            function updateDocumentZoom(newZoom) {
+                                currentDocZoom = Math.max(0.25, Math.min(2.0, newZoom));
+                                
+                                const wrapper = document.getElementById("document-zoom-wrapper");
+                                const zoomLevel = document.getElementById("doc-zoom-level");
+                                
+                                if (wrapper) {
+                                    const table = wrapper.querySelector("table");
+                                    
+                                    if (table) {
+                                        // Reset scale
+                                        wrapper.style.transform = "scale(1)";
+                                        wrapper.style.width = "auto";
+                                        wrapper.style.height = "auto";
+                                        wrapper.style.marginRight = "";
+                                        wrapper.style.marginBottom = "";
+                                        void wrapper.offsetWidth; // force reflow
+                                        
+                                        // คำนวณ width จาก colgroup
+                                        const colgroup = table.querySelector("colgroup");
+                                        let actualWidth = 0;
+                                        if (colgroup) {
+                                            const cols = colgroup.querySelectorAll("col");
+                                            cols.forEach(function(col) {
+                                                const colWidth = col.style.width;
+                                                actualWidth += parseFloat(colWidth) || 0;
+                                            });
+                                        }
+                                        
+                                        if (actualWidth === 0) {
+                                            actualWidth = table.offsetWidth;
+                                        }
+                                        
+                                        const actualHeight = table.offsetHeight;
+                                        
+                                        wrapper.style.width = actualWidth + "px";
+                                        wrapper.style.height = actualHeight + "px";
+                                        wrapper.style.transform = "scale(" + currentDocZoom + ")";
+                                        
+                                        if (currentDocZoom < 1) {
+                                            const excessWidth = actualWidth * (1 - currentDocZoom);
+                                            const excessHeight = actualHeight * (1 - currentDocZoom);
+                                            wrapper.style.marginRight = "-" + excessWidth + "px";
+                                            wrapper.style.marginBottom = "-" + excessHeight + "px";
+                                        } else {
+                                            wrapper.style.marginRight = "0";
+                                            wrapper.style.marginBottom = "0";
+                                        }
+                                    } else {
+                                        wrapper.style.transform = "scale(" + currentDocZoom + ")";
+                                    }
+                                    
+                                    if (zoomLevel) {
+                                        zoomLevel.textContent = Math.round(currentDocZoom * 100) + "%";
+                                    }
+                                }
+                            }
+                            
+                            function documentZoomIn() {
+                                updateDocumentZoom(currentDocZoom + 0.1);
+                            }
+                            
+                            function documentZoomOut() {
+                                updateDocumentZoom(currentDocZoom - 0.1);
+                            }
+                            
+                            function documentZoomReset() {
+                                updateDocumentZoom(1.0);
+                            }
+                            
+                            // Initialize
+                            setTimeout(function() {
+                                updateDocumentZoom(1.0);
+                            }, 100);
+                            </script>';
                             
                             return $html;
                         })
@@ -146,7 +278,6 @@ class ViewDocument extends ViewRecord
                 ])
                 ->columnSpanFull();
         } else {
-            // status_only - แสดงเฉพาะรายชื่อ approvers
             $schema[] = Infolists\Components\Section::make('Approvers')
                 ->schema([
                     Infolists\Components\TextEntry::make('approver_list')
@@ -183,36 +314,29 @@ class ViewDocument extends ViewRecord
                         ->rows(3),
                 ])
                 ->action(function (array $data) use ($currentApproval) {
-                    // อัปเดต approval status
                     $currentApproval->update([
                         'status' => ApprovalStatus::APPROVED,
                         'approved_at' => now(),
                         'comment' => $data['comment'] ?? null,
                     ]);
 
-                    // บันทึก signature ถ้ามี signature_cell
                     if ($currentApproval->signature_cell) {
                         $parts = explode(':', $currentApproval->signature_cell);
                         if (count($parts) === 2) {
                             $sheet = $parts[0];
                             $cell = $parts[1];
-                            
                             $this->record->setSignature($sheet, $cell, $currentApproval->approver_id);
                             $this->record->save();
                         }
                     }
 
-                    // ตรวจสอบว่ามี approver คนถัดไปหรือไม่
                     $nextStep = $this->record->current_step + 1;
                     $hasNextApprover = $this->record->approvers()
                         ->where('step_order', $nextStep)
                         ->exists();
 
                     if ($hasNextApprover) {
-                        $this->record->update([
-                            'current_step' => $nextStep,
-                        ]);
-                        
+                        $this->record->update(['current_step' => $nextStep]);
                         Notification::make()
                             ->success()
                             ->title('Document Approved')
@@ -223,7 +347,6 @@ class ViewDocument extends ViewRecord
                             'status' => DocumentStatus::APPROVED,
                             'approved_at' => now(),
                         ]);
-                        
                         Notification::make()
                             ->success()
                             ->title('Document Fully Approved')
