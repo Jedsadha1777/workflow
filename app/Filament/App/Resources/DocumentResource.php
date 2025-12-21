@@ -62,7 +62,10 @@ class DocumentResource extends Resource
                         }
 
                         $formId = 'doc_form_' . ($record ? $record->id : 'new') . '_' . uniqid();
-                        $existingFormData = ($record && $record->form_data) ? $record->form_data : [];
+                        $existingFormData = [];
+                        if ($record && $record->form_data) {
+                            $existingFormData = is_array($record->form_data) ? $record->form_data : json_decode($record->form_data, true);
+                        }
 
                         // เพิ่ม x-cloak เพื่อซ่อนตอน mount
                         $html = '<div id="' . $formId . '" 
