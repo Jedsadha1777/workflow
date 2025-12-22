@@ -39,6 +39,21 @@ class SetupApproval extends Page
 
     public function form(Form $form): Form
     {
+        $signatureFields = $this->document->getSignatureFields() ?? [];
+
+        $signatureOptions = collect($signatureFields)->mapWithKeys(function ($field) {
+            $cellRef = $field['sheet'] . ':' . $field['cell'];
+            $label = $field['name'] . ' (' . $cellRef . ')';
+            return [$cellRef => $label];
+        })->toArray();
+
+        $dateFields = $this->document->getDateFields() ?? [];
+        $dateOptions = collect($dateFields)->mapWithKeys(function ($field) {
+            $cellRef = $field['sheet'] . ':' . $field['cell'];
+            $label = $field['name'] . ' (' . $cellRef . ')';
+            return [$cellRef => $label];
+        })->toArray();
+
         return $form
             ->schema([
                 Forms\Components\Repeater::make('approvers')
@@ -54,16 +69,20 @@ class SetupApproval extends Page
                             ->searchable()
                             ->columnSpan(2),
 
-                        Forms\Components\TextInput::make('signature_cell')
+                        Forms\Components\Select::make('signature_cell')
                             ->label('Signature Cell')
-                            ->placeholder('e.g., Sheet1:A5')
+                            ->options($signatureOptions)
+                            ->placeholder('Select signature field')
                             ->helperText('Cell where signature will be stamped')
+                            ->searchable()
                             ->columnSpan(1),
 
-                        Forms\Components\TextInput::make('approved_date_cell')
+                        Forms\Components\Select::make('approved_date_cell')
                             ->label('Approved Date Cell')
-                            ->placeholder('e.g., Sheet1:B5')
+                            ->options($dateOptions)
+                            ->placeholder('Select date field')
                             ->helperText('Cell where approval date will be stamped')
+                            ->searchable()
                             ->columnSpan(1),
                     ])
                     ->columns(4)

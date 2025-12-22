@@ -25,16 +25,14 @@ class Document extends Model
         'current_step',
     ];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'status' => DocumentStatus::class,
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'content' => 'array',
             'form_data' => 'array',
-        ];
-    }
+    ];
+
 
     public function creator(): BelongsTo
     {
@@ -199,4 +197,49 @@ class Document extends Model
 
         return $html;
     }
+
+    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
+    public function getFormFields(): array
+    {
+        $fields = [];
+        $content = is_string($this->content) ? json_decode($this->content, true) : $this->content;
+        $sheets = $content['sheets'] ?? [];
+
+
+        foreach ($sheets as $sheet) {
+            $sheetName = $sheet['name'];
+            $html = $sheet['html'];
+
+            preg_match_all('/\[(text|email|tel|number|date|textarea|select|checkbox|signature)(\*?)\s+([^\s\]]+)(?:\s+cell="([^"]+)")?\]/', $html, $matches, PREG_SET_ORDER);
+
+            foreach ($matches as $match) {
+                $fieldType = $match[1];
+                $required = $match[2] === '*';
+                $fieldName = $match[3];
+                $cell = $match[4] ?? null;
+
+                $fields[] = [
+                    'sheet' => $sheetName,
+                    'type' => $fieldType,
+                    'name' => $fieldName,
+                    'cell' => $cell,
+                    'required' => $required,
+                ];
+            }
+        }
+
+        return $fields;
+    }
+
+
+    public function getSignatureFields(): array
+    {
+        return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'signature');
+    }
+
+    public function getDateFields(): array
+    {
+        return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'date');
+    }
+    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
 }

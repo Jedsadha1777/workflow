@@ -24,7 +24,6 @@ class TemplateDocument extends Model
         return $this->hasMany(Document::class, 'template_document_id');
     }
 
-    // ดึง form fields ทั้งหมดจาก template
     public function getFormFields(): array
     {
         $fields = [];
@@ -34,7 +33,6 @@ class TemplateDocument extends Model
             $sheetName = $sheet['name'];
             $html = $sheet['html'];
 
-            // Extract form fields from HTML
             preg_match_all('/\[(text|email|tel|number|date|textarea|select|checkbox|signature)(\*?)\s+([^\s\]]+)(?:\s+cell="([^"]+)")?\]/', $html, $matches, PREG_SET_ORDER);
 
             foreach ($matches as $match) {
@@ -56,9 +54,13 @@ class TemplateDocument extends Model
         return $fields;
     }
 
-    // ดึงเฉพาะ signature fields
     public function getSignatureFields(): array
     {
         return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'signature');
+    }
+
+    public function getDateFields(): array
+    {
+        return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'date');
     }
 }
