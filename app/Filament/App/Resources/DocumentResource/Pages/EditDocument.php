@@ -31,4 +31,10 @@ class EditDocument extends EditRecord
         
         return $data;
     }
+
+    protected function getRedirectUrl(): string
+    {
+        // Redirect to setup approval page
+        return static::getResource()::getUrl('setup-approval', ['record' => $this->record]);
+    }
 }

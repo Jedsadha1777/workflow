@@ -153,3 +153,7 @@ php artisan optimize:clear
 exit
 php artisan optimize:clear
 exit
+php artisan make:filament-theme
+php artisan optimize
+php artisan optimize
+exit

@@ -65,7 +65,8 @@ class TemplateDocumentResource extends Resource
                         $id = 'luckysheet_' . uniqid();
                         $wrapperId = 'wrapper_' . $id;
 
-                        return new HtmlString(<<<HTML
+                        return new HtmlString(
+                            <<<HTML
 <div id="{$wrapperId}" wire:ignore>
 <style>
 #{$id} { scroll-margin: 0 !important; }
@@ -84,10 +85,17 @@ class TemplateDocumentResource extends Resource
 }
 .preview-content table {
   display: table !important;
-  width: auto !important;
+  width: 100% !important;
 }
+
+
+
 </style>
+<div class="no-tailwind">
+
 <div id="{$id}" style="margin:10px 0;width:100%;height:600px;border:1px solid #ccc;position:relative;overflow:hidden;"></div>
+
+</div>
 <div class="flex gap-2 mt-4">
 <button type="button" id="fullscreen_btn_{$id}" class="inline-flex items-center px-4 py-2 rounded-lg text-white" style="background-color:#4B5563;">Fullscreen</button>
 <button type="button" id="preview_btn_{$id}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-500">Preview HTML</button>
@@ -98,6 +106,8 @@ class TemplateDocumentResource extends Resource
 <h3 class="text-lg font-semibold">HTML Preview</h3>
 <div id="preview_sheets_{$id}"></div>
 </div>
+
+
 <script>
 (function() {
     let scriptLoaded = false;

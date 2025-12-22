@@ -1,0 +1,99 @@
+@media only screen and (min-width: 1024px) and (max-width: 1980px) {
+    .fi-sidebar {
+        width: 16rem !important;
+    }
+}
+
+
+.template-content > table:first-child{width: 100%; }
+
+.template-content > table:first-child th,
+.template-content > table:first-child td{line-height: 1em;    }
+
+.template-content  [id^="field_"] {
+    font-size: 1em; font-weight: normal;
+    color: #000;
+}
+
+
+.template-content input[id^="field_"][type="text"],
+.template-content input[id^="field_"][type="number"],
+.template-content input[id^="field_"][type="email"],
+.template-content textarea[id^="field_"] {
+    font-size: 1.25em;
+    line-height: 1.6em;
+}
+
+.no-tailwind input,
+.no-tailwind textarea,
+.no-tailwind select {
+    all: unset;
+    box-sizing: border-box;
+
+    font-family: Arial, sans-serif !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    color: #000;
+
+    padding: 2px 4px;
+    background: transparent;
+    border: none;
+    width: auto;
+    height: auto;
+} 
+
+
+.no-tailwind table,
+.no-tailwind tr,
+.no-tailwind td,
+.no-tailwind th,
+.no-tailwind div,
+.no-tailwind span,
+.no-tailwind input {
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+}
+.luckysheet-cols-menu div,
+.luckysheet-cols-menu input,
+.luckysheet-cols-menu select
+.luckysheet-cols-menu select option,
+.luckysheet-cols-menu textarea{
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+    font-size: 12px !important;
+    line-height: 1.4em !important;
+    width: auto;
+}
+
+.no-tailwind select{ padding: 0px !important; padding-right: 2.5rem !important;}
+
+
+.no-tailwind .luckysheet select,
+.no-tailwind select,
+.no-tailwind select option{
+    all: unset;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #000;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    padding: .5rem .75rem;
+}
+
+
+
+.luckysheet-mousedown-cancel select{
+    padding: auto;
+    font-size: 12px !important;
+    line-height: auto;
+    height: auto !important;
+    line-height: 1.4em !important;
+    padding: 0px;
+    padding-right: 2.5rem;
+}

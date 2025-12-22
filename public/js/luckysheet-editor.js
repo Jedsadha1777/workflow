@@ -256,7 +256,7 @@ function initLuckysheetEditor(wrapperId, config) {
                     .zoom-level { font-size: 14px; color: #6b7280; min-width: 50px; text-align: center; }
                     .tab-content { display: none; }
                     .tab-content.active { display: block; }
-                    .preview-content {  max-height: 600px; overflow: auto;  border: 1px solid #e5e7eb;  border-radius: 6px;  padding: 16px;   background: #fafafa;  }
+                    .preview-content {  max-height: auto; overflow: auto;  border: 1px solid #e5e7eb;  border-radius: 6px;  padding: 16px;   background: #fff;  }
                     .preview-content table td { line-height: 1.3; }
                     .preview-zoom-wrapper {  transform-origin: top left;  transition: transform 0.2s;}
                 `;
@@ -361,20 +361,21 @@ function initLuckysheetEditor(wrapperId, config) {
 
                     let currentZoom = 1.0;
 
-                    function updateZoom(newZoom) {
+                    // แก้ไข: สร้างฟังก์ชัน updateZoom ให้รับพารามิเตอร์ wrapper และ table โดยตรง
+                    function updateZoom(newZoom, targetWrapper) {
                         currentZoom = Math.max(0.25, Math.min(2.0, newZoom));
-
-                        const table = previewZoomWrapper.querySelector('table');
+                        const table = targetWrapper.querySelector('table');
+                        
                         if (table) {
-                            // Reset scale เพื่อวัดขนาดจริง
-                            previewZoomWrapper.style.transform = 'scale(1)';
-                            previewZoomWrapper.style.width = 'auto';
-                            previewZoomWrapper.style.height = 'auto';
-                            previewZoomWrapper.style.marginRight = '';
-                            previewZoomWrapper.style.marginBottom = '';
-                            void previewZoomWrapper.offsetWidth; // force reflow
+                            // 1. Reset เพื่อวัดขนาดจริงของ Sheet นั้นๆ
+                            targetWrapper.style.transform = 'scale(1)';
+                            targetWrapper.style.width = 'auto';
+                            targetWrapper.style.height = 'auto';
+                            
+                            // Force reflow เฉพาะตัวที่กำลังจัดการ
+                            void targetWrapper.offsetWidth;
 
-                            // คำนวณ width จากผลรวม colgroup
+                            // 2. คำนวณขนาดจาก colgroup ของตารางนี้เท่านั้น
                             const colgroup = table.querySelector('colgroup');
                             let actualWidth = 0;
                             if (colgroup) {
@@ -385,43 +386,53 @@ function initLuckysheetEditor(wrapperId, config) {
                                 });
                             }
 
-                            // ถ้าคำนวนไม่ได้ ใช้ offsetWidth
                             if (actualWidth === 0) {
                                 actualWidth = table.offsetWidth;
                             }
-
                             const actualHeight = table.offsetHeight;
 
-                            // กำหนด wrapper ให้เท่า table
-                            previewZoomWrapper.style.width = actualWidth + 'px';
-                            previewZoomWrapper.style.height = actualHeight + 'px';
+                            table.style.width = actualWidth + 'px';
+                            table.style.minWidth = actualWidth + 'px';
+                            table.style.margin = '0';
 
-                            // Apply scale ใหม่
-                            previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
+                            // 3. ปรับขนาดกรอบตามเงื่อนไขที่ต้องการ
+                            targetWrapper.style.transformOrigin = 'top left';
+                            targetWrapper.style.transform = 'scale(' + currentZoom + ')';
 
                             if (currentZoom < 1) {
-                                // Zoom out: ใช้ negative margin เพื่อลด space
-                                const excessWidth = actualWidth * (1 - currentZoom);
-                                const excessHeight = actualHeight * (1 - currentZoom);
-                                previewZoomWrapper.style.marginRight = '-' + excessWidth + 'px';
-                                previewZoomWrapper.style.marginBottom = '-' + excessHeight + 'px';
+                                // ซูมออก: หดกรอบตามสัดส่วน
+                                targetWrapper.style.width = (actualWidth * currentZoom) + 'px';
+                                targetWrapper.style.height = (actualHeight * currentZoom) + 'px';
                             } else {
-                                // Zoom >= 1: ไม่ต้อง margin
-                                previewZoomWrapper.style.marginRight = '0';
-                                previewZoomWrapper.style.marginBottom = '0';
+                                // ซูมเข้า: ล็อคกรอบไว้ที่ 100% ไม่ให้ล้น layout
+                                targetWrapper.style.width = actualWidth + 'px';
+                                targetWrapper.style.height = actualHeight + 'px';
                             }
-                        } else {
-                            previewZoomWrapper.style.transform = 'scale(' + currentZoom + ')';
-                            previewZoomWrapper.style.marginRight = '0';
-                            previewZoomWrapper.style.marginBottom = '0';
-                        }
 
-                        zoomLevel.textContent = Math.round(currentZoom * 100) + '%';
+                            // ล็อคความกว้างตารางข้างในไม่ให้เพี้ยน
+                            table.style.width = actualWidth + 'px';
+                            table.style.minWidth = actualWidth + 'px';
+                            table.style.margin = '0';
+                        }
+                        
+                        // อัปเดตตัวเลข % ในชุดควบคุมของ sheet นั้นๆ
+                        const currentZoomLevelLabel = targetWrapper.closest('.sheet-wrapper').querySelector('.zoom-level');
+                        if (currentZoomLevelLabel) {
+                            currentZoomLevelLabel.textContent = Math.round(currentZoom * 100) + '%';
+                        }
                     }
 
-                    zoomInBtn.onclick = function () { updateZoom(currentZoom + 0.1); };
-                    zoomOutBtn.onclick = function () { updateZoom(currentZoom - 0.1); };
-                    zoomResetBtn.onclick = function () { updateZoom(1.0); };
+                    // แก้ไขส่วนการเรียกใช้ Event Listeners ของปุ่ม
+                    zoomInBtn.onclick = function () { 
+                        updateZoom(currentZoom + 0.1, previewZoomWrapper); 
+                    };
+                    zoomOutBtn.onclick = function () { 
+                        updateZoom(currentZoom - 0.1, previewZoomWrapper); 
+                    };
+                    zoomResetBtn.onclick = function () { 
+                        currentZoom = 1.0;
+                        updateZoom(1.0, previewZoomWrapper); 
+                    };
 
                     previewBtn.onclick = function () {
                         previewBtn.classList.add('active');

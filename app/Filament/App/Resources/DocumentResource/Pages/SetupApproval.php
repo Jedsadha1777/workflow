@@ -81,7 +81,7 @@ class SetupApproval extends Page
         return $infolist
             ->record($this->document)
             ->schema([
-                Infolists\Components\Section::make('Document Preview')
+                Infolists\Components\Section::make('Document Info')
                     ->schema([
                         Infolists\Components\TextEntry::make('title')
                             ->label('Title'),
@@ -131,10 +131,17 @@ class SetupApproval extends Page
     protected function getHeaderActions(): array
     {
         return [
+            \Filament\Actions\Action::make('edit_document')
+                ->label('Edit Document')
+                ->icon('heroicon-o-pencil')
+                ->color('gray')
+                ->url(fn () => DocumentResource::getUrl('edit', ['record' => $this->document])),
+            
             \Filament\Actions\Action::make('save')
                 ->label('Save Approval Workflow')
                 ->action('save')
                 ->color('success'),
+            
             \Filament\Actions\Action::make('cancel')
                 ->label('Cancel')
                 ->action('cancel')

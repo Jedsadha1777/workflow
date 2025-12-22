@@ -67,21 +67,75 @@ class DocumentResource extends Resource
                             $existingFormData = is_array($record->form_data) ? $record->form_data : json_decode($record->form_data, true);
                         }
 
-                        $html = '<div id="' . $formId . '" 
-                     class="space-y-6" 
-                     wire:ignore
-                     x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')"
-                     x-cloak>';
+                        $html = '<style>
+                            .zoom-controls {
+                                margin-left: auto;
+                                display: flex;
+                                gap: 8px;
+                                align-items: center;
+                            }
+                            .zoom-btn {
+                                width: 32px;
+                                height: 32px;
+                                border: 1px solid #d1d5db;
+                                background: white;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                                color: #374151;
+                                transition: all 0.2s;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            }
+                            .zoom-btn:hover {
+                                background: #f3f4f6;
+                                border-color: #9ca3af;
+                            }
+                            .zoom-level {
+                                font-size: 14px;
+                                color: #6b7280;
+                                min-width: 50px;
+                                text-align: center;
+                            }
+                            .preview-zoom-wrapper {
+                                transform-origin: top left;
+                                transition: transform 0.2s;
+                            }
+                            [x-cloak] { display: none !important; }
+                        </style>';
 
+                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')" x-cloak>';
+
+                        $sheetIndex = 0;
                         foreach ($content['sheets'] as $sheet) {
-                            $html .= '<div class="border rounded-lg p-4 bg-white">';
-                            $html .= '<h4 class="font-semibold mb-3">' . htmlspecialchars($sheet['name']) . '</h4>';
-                            $html .= '<div class="overflow-x-auto"><div class="template-content" data-processed="false">' . $sheet['html'] . '</div></div>';
+                            $sheetId = $formId . '_sheet_' . $sheetIndex;
+                            
+                            $html .= '<div class="border rounded-lg p-4 bg-white mb-4">';
+                            
+                            $html .= '<div style="display: flex; align-items: center; margin-bottom: 12px;">';
+                            $html .= '<h4 class="font-semibold" style="margin: 0;">' . htmlspecialchars($sheet['name']) . '</h4>';
+                            
+                            $html .= '<div class="zoom-controls" data-sheet-id="' . $sheetId . '">';
+                            $html .= '<button type="button" class="zoom-btn" data-zoom-action="out">−</button>';
+                            $html .= '<span class="zoom-level" id="zoom-level-' . $sheetId . '">100%</span>';
+                            $html .= '<button type="button" class="zoom-btn" data-zoom-action="in">+</button>';
+                            $html .= '<button type="button" class="zoom-btn" data-zoom-action="reset" style="font-size: 18px;">⟲</button>';
                             $html .= '</div>';
+                            $html .= '</div>';
+                            
+                            $html .= '<div style="max-height: auto; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px; background: #fff;">';
+                            $html .= '<div id="' . $sheetId . '" class="preview-zoom-wrapper">';
+                            $html .= '<div class="template-content" data-processed="false">' . $sheet['html'] . '</div>';
+                            $html .= '</div></div>';
+                            
+                            $html .= '</div>';
+                            
+                            $sheetIndex++;
                         }
 
                         $html .= '</div>';
-                        $html .= '<style>[x-cloak] { display: none !important; }</style>';
 
                         return new HtmlString($html);
                     })
@@ -131,20 +185,17 @@ class DocumentResource extends Resource
                 Tables\Actions\EditAction::make()
                     ->visible(fn($record) => $record->canBeEditedBy(auth()->user())),
                 
-                // Setup Approval (ใหม่)
                 Tables\Actions\Action::make('setup_approval')
                     ->icon('heroicon-o-user-group')
                     ->color('info')
                     ->url(fn($record) => static::getUrl('setup-approval', ['record' => $record]))
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
                 
-                // Submit for Approval
                 Tables\Actions\Action::make('submit')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(function (Document $record) {
-                        // ต้องมี approver อย่างน้อย 1 คน
                         if ($record->approvers()->count() === 0) {
                             \Filament\Notifications\Notification::make()
                                 ->danger()
@@ -191,7 +242,7 @@ class DocumentResource extends Resource
             'create' => Pages\CreateDocument::route('/create'),
             'edit' => Pages\EditDocument::route('/{record}/edit'),
             'view' => Pages\ViewDocument::route('/{record}'),
-            'setup-approval' => Pages\SetupApproval::route('/{record}/setup-approval'), // ใหม่
+            'setup-approval' => Pages\SetupApproval::route('/{record}/setup-approval'),
         ];
     }
 }

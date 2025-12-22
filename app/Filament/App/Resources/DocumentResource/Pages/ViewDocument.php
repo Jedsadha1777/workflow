@@ -94,12 +94,12 @@ class ViewDocument extends ViewRecord
                                 text-align: center;
                             }
                             .document-content-wrapper {
-                                max-height: 600px;
+                                max-height: auto;
                                 overflow: auto;
                                 border: 1px solid #e5e7eb;
                                 border-radius: 6px;
                                 padding: 16px;
-                                background: #fafafa;
+                                background: #fff;
                             }
                             .document-zoom-wrapper {
                                 transform-origin: top left;
