@@ -256,7 +256,7 @@ function initLuckysheetEditor(wrapperId, config) {
                     .zoom-level { font-size: 14px; color: #6b7280; min-width: 50px; text-align: center; }
                     .tab-content { display: none; }
                     .tab-content.active { display: block; }
-                    .preview-content {  max-height: auto; overflow: auto;  border: 1px solid #e5e7eb;  border-radius: 6px;  padding: 16px;   background: #fff;  }
+                    .preview-content {  max-height: 600px; overflow: auto;  border: 1px solid #e5e7eb;  border-radius: 6px;  padding: 16px;   background: #fafafa;  }
                     .preview-content table td { line-height: 1.3; }
                     .preview-zoom-wrapper {  transform-origin: top left;  transition: transform 0.2s;}
                 `;

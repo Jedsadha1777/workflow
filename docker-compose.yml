@@ -10,10 +10,13 @@ services:
     working_dir: /var/www
     volumes:
       - ./:/var/www
+    environment:
+      - PDF_SERVICE_URL=http://pdf-service:3000
     networks:
       - laravel
     depends_on:
       - db
+      - pdf-service
 
   nginx:
     image: nginx:alpine
@@ -60,6 +63,24 @@ services:
       - laravel
     depends_on:
       - db
+
+  pdf-service:
+    build:
+      context: ./pdf-service
+      dockerfile: Dockerfile
+    container_name: workflow_pdf_service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - laravel
 
 networks:
   laravel:

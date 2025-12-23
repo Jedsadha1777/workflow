@@ -146,4 +146,8 @@
     
     document.addEventListener('livewire:navigated', initZoomControls);
     document.addEventListener('livewire:load', initZoomControls);
+
+
+    document.addEventListener('filament:navigated', initZoomControls);
+    document.addEventListener('livewire:navigated', initZoomControls);
 })();

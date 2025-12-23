@@ -44,6 +44,7 @@ class DocumentResource extends Resource
 
                 Forms\Components\Placeholder::make('template_form')
                     ->label('Template Form')
+               
                     ->columnSpanFull()
                     ->content(function ($get, $record) {
                         $templateId = $get('template_document_id');
@@ -111,12 +112,12 @@ class DocumentResource extends Resource
                         $sheetIndex = 0;
                         foreach ($content['sheets'] as $sheet) {
                             $sheetId = $formId . '_sheet_' . $sheetIndex;
-                            
-                            $html .= '<div class="border rounded-lg p-4 bg-white mb-4">';
-                            
+
+                            $html .= '<div class="bg-white mb-4">';
+
                             $html .= '<div style="display: flex; align-items: center; margin-bottom: 12px;">';
                             $html .= '<h4 class="font-semibold" style="margin: 0;">' . htmlspecialchars($sheet['name']) . '</h4>';
-                            
+
                             $html .= '<div class="zoom-controls" data-sheet-id="' . $sheetId . '">';
                             $html .= '<button type="button" class="zoom-btn" data-zoom-action="out">−</button>';
                             $html .= '<span class="zoom-level" id="zoom-level-' . $sheetId . '">100%</span>';
@@ -124,14 +125,14 @@ class DocumentResource extends Resource
                             $html .= '<button type="button" class="zoom-btn" data-zoom-action="reset" style="font-size: 18px;">⟲</button>';
                             $html .= '</div>';
                             $html .= '</div>';
-                            
+
                             $html .= '<div style="max-height: auto; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px; background: #fff;">';
                             $html .= '<div id="' . $sheetId . '" class="preview-zoom-wrapper">';
                             $html .= '<div class="template-content" data-processed="false">' . $sheet['html'] . '</div>';
                             $html .= '</div></div>';
-                            
+
                             $html .= '</div>';
-                            
+
                             $sheetIndex++;
                         }
 
@@ -184,13 +185,13 @@ class DocumentResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn($record) => $record->canBeEditedBy(auth()->user())),
-                
+
                 Tables\Actions\Action::make('setup_approval')
                     ->icon('heroicon-o-user-group')
                     ->color('info')
                     ->url(fn($record) => static::getUrl('setup-approval', ['record' => $record]))
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
-                
+
                 Tables\Actions\Action::make('submit')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
@@ -204,7 +205,7 @@ class DocumentResource extends Resource
                                 ->send();
                             return;
                         }
-                        
+
                         $record->update([
                             'status' => DocumentStatus::PENDING,
                             'submitted_at' => now(),

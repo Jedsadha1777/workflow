@@ -31,4 +31,8 @@ return [
         ],
     ],
 
+    'pdf' => [
+    'url' => env('PDF_SERVICE_URL', 'http://localhost:3000'),
+],
+
 ];

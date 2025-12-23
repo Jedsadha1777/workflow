@@ -1,7 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DocumentExportController;
 
-// Route::get('/', function () {
-//     return view('welcome');
-// });
+Route::middleware(['auth:web'])->group(function () {
+    Route::get('/documents/{document}/export-pdf', [DocumentExportController::class, 'exportPdf'])
+        ->name('documents.export-pdf');
+});

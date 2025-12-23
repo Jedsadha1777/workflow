@@ -97,3 +97,22 @@
     padding: 0px;
     padding-right: 2.5rem;
 }
+
+
+
+/* ตัด card */
+.no-card .fi-field-wrapper {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* ตัด padding ภายใน */
+.no-card .fi-field-wrapper-content {
+    padding: 0;
+}
+
+/* ตัด label spacing เผื่อหลงเหลือ */
+.no-card .fi-field-wrapper-label {
+    display: none;
+}
