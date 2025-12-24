@@ -158,19 +158,46 @@ class DocumentExportController extends Controller
                             if ($approver && $approver->signature_image) {
                                 $signaturePath = storage_path('app/public/' . $approver->signature_image);
                                 
+                                \Log::info("Excel Signature Debug", [
+                                    'approver' => $approver->name,
+                                    'signature_image' => $approver->signature_image,
+                                    'full_path' => $signaturePath,
+                                    'file_exists' => file_exists($signaturePath),
+                                    'cell' => $cellCoord
+                                ]);
+                                
                                 if (file_exists($signaturePath)) {
-                                    $drawing = new Drawing();
-                                    $drawing->setName('Signature');
-                                    $drawing->setDescription($approver->name . ' - Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])));
-                                    $drawing->setPath($signaturePath);
-                                    $drawing->setCoordinates($cellCoord);
-                                    $drawing->setHeight(60);
-                                    $drawing->setOffsetX(5);
-                                    $drawing->setOffsetY(5);
-                                    $drawing->setWorksheet($worksheet);
-                                    
-                                    $worksheet->getRowDimension($worksheet->getCell($cellCoord)->getRow())->setRowHeight(60);
+                                    try {
+                                        $drawing = new Drawing();
+                                        $drawing->setName('Signature');
+                                        $drawing->setDescription($approver->name . ' - Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])));
+                                        $drawing->setPath($signaturePath);
+                                        $drawing->setCoordinates($cellCoord);
+                                        $drawing->setHeight(60);
+                                        $drawing->setOffsetX(5);
+                                        $drawing->setOffsetY(5);
+                                        $drawing->setWorksheet($worksheet);
+                                        
+                                        $rowNumber = $worksheet->getCell($cellCoord)->getRow();
+                                        $worksheet->getRowDimension($rowNumber)->setRowHeight(60);
+                                        
+                                        \Log::info("Excel Signature Success", [
+                                            'cell' => $cellCoord,
+                                            'approver' => $approver->name
+                                        ]);
+                                    } catch (\Exception $e) {
+                                        \Log::error("Excel Drawing Error", [
+                                            'error' => $e->getMessage(),
+                                            'cell' => $cellCoord
+                                        ]);
+                                        $cellValue = "✓ {$approver->name}\nSigned: " . date('Y-m-d H:i', strtotime($value['signed_at']));
+                                        $worksheet->setCellValue($cellCoord, $cellValue);
+                                    }
                                 } else {
+                                    \Log::warning("Excel Signature File Not Found", [
+                                        'path' => $signaturePath,
+                                        'cell' => $cellCoord
+                                    ]);
                                     $cellValue = "✓ {$approver->name}\nSigned: " . date('Y-m-d H:i', strtotime($value['signed_at']));
                                     $worksheet->setCellValue($cellCoord, $cellValue);
                                 }
@@ -186,7 +213,10 @@ class DocumentExportController extends Controller
                             $worksheet->setCellValue($cellCoord, $value);
                         }
                     } catch (\Exception $e) {
-                        // Silent error
+                        \Log::error("Excel Cell Error", [
+                            'cell' => $cellCoord,
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
             } catch (\Exception $e) {
