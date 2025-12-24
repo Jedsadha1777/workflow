@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Pages\Auth\EditProfile;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -24,11 +25,15 @@ class AdminPanelProvider extends PanelProvider
     {
         return $panel
             ->id('admin')
+            ->brandLogo(asset('images/logo.png'))
+            ->brandName('AKT')
+            ->brandLogoHeight('2rem') 
             ->path('admin')
             ->login()
+            ->profile(EditProfile::class) 
             ->authGuard('admin')
             ->colors([
-                'primary' => Color::Blue,
+                'primary' => Color::Zinc,
             ])
             ->discoverResources(in: app_path('Filament/Admin/Resources'), for: 'App\\Filament\\Admin\\Resources')
             ->discoverPages(in: app_path('Filament/Admin/Pages'), for: 'App\\Filament\\Admin\\Pages')

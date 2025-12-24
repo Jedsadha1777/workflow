@@ -1,4 +1,3 @@
-// pdf-service/index.js
 const express = require('express');
 const puppeteer = require('puppeteer');
 const app = express();
@@ -8,7 +7,6 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 let browser = null;
 
-// เปิด browser ตอน start (reuse browser instance)
 async function initBrowser() {
     browser = await puppeteer.launch({
         headless: 'new',
@@ -25,7 +23,7 @@ async function initBrowser() {
 app.post('/api/generate-pdf', async (req, res) => {
     try {
         const { html, options = {} } = req.body;
-
+ 
         if (!html) {
             return res.status(400).json({ error: 'HTML is required' });
         }
@@ -43,14 +41,59 @@ app.post('/api/generate-pdf', async (req, res) => {
             timeout: 30000
         });
 
+        // วัด intrinsic width จาก browser layout จริง
+        await page.evaluate((orientation) => {
+            const pageWidth = orientation === 'landscape' ? 1085 : 756;
+            
+            const wrappers = document.querySelectorAll('.sheet-scale');
+            wrappers.forEach(wrapper => {
+                const table = wrapper.querySelector('table');
+                if (!table) return;
+                
+                // 1. วัด intrinsic width จาก colgroup
+                const cols = table.querySelectorAll('colgroup col');
+                let intrinsicWidth = 0;
+                cols.forEach(col => {
+                    const w = parseFloat(col.style.width || col.getAttribute('width') || 0);
+                    intrinsicWidth += w;
+                });
+                
+                if (intrinsicWidth === 0) {
+                    intrinsicWidth = table.offsetWidth;
+                }
+                
+                // 2. Lock table width = intrinsic width
+                table.style.width = intrinsicWidth + 'px';
+                table.style.minWidth = intrinsicWidth + 'px';
+                table.style.tableLayout = 'fixed';
+                
+                // 3. Lock wrapper width = intrinsic width
+                wrapper.style.width = intrinsicWidth + 'px';
+                
+                // 4. Scale ถ้าเกิน
+                if (intrinsicWidth > pageWidth) {
+                    const scale = pageWidth / intrinsicWidth;
+                    
+                    wrapper.style.transformOrigin = 'top left';
+                    wrapper.style.transform = `scale(${scale})`;
+                    
+                    // ปรับกรอบหลัง scale
+                    wrapper.style.width = (intrinsicWidth * scale) + 'px';
+                    wrapper.style.height = (table.offsetHeight * scale) + 'px';
+                }
+                
+                // 5. Center ด้วย flexbox (parent .sheet-wrapper)
+            });
+        }, options.orientation);
+
         const pdfBuffer = await page.pdf({
             format: options.format || 'A4',
             landscape: options.orientation === 'landscape',
             margin: {
-                top: options.marginTop || '5mm',
-                right: options.marginRight || '5mm',
-                bottom: options.marginBottom || '5mm',
-                left: options.marginLeft || '5mm'
+                top: '5mm',
+                right: '5mm',
+                bottom: '5mm',
+                left: '5mm'
             },
             printBackground: true,
             preferCSSPageSize: false

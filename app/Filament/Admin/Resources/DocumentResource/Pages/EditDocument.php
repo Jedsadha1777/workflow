@@ -17,41 +17,15 @@ class EditDocument extends EditRecord
         ];
     }
 
-    protected function mutateFormDataBeforeFill(array $data): array
-    {
-        $data['approvers'] = $this->record->approvers()
-            ->orderBy('step_order')
-            ->get()
-            ->map(fn ($approver) => [
-                'approver_id' => $approver->approver_id,
-            ])
-            ->toArray();
-
-        return $data;
-    }
-
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        unset($data['approvers']);
+        if (isset($data['form_data']) && is_string($data['form_data'])) {
+            $parsed = json_decode($data['form_data'], true);
+            $data['form_data'] = $parsed ?: [];
+        }
+        
+        unset($data['content']);
         
         return $data;
-    }
-
-    protected function afterSave(): void
-    {
-        $approversData = $this->form->getRawState()['approvers'] ?? [];
-        
-        $this->record->approvers()->delete();
-        
-        $stepOrder = 1;
-        foreach ($approversData as $approver) {
-            if (is_array($approver) && isset($approver['approver_id']) && !empty($approver['approver_id'])) {
-                $this->record->approvers()->create([
-                    'approver_id' => $approver['approver_id'],
-                    'step_order' => $stepOrder,
-                ]);
-                $stepOrder++;
-            }
-        }
     }
 }

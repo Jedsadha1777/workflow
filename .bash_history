@@ -159,3 +159,9 @@ php artisan optimize
 exit
 php artisan optimize:clear
 exit
+composer require phpoffice/phpspreadsheet
+php artisan migration
+php artisan migrate
+php artisan optimize
+php artisan optimize:clear
+exit

@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Resources\DocumentResource\Pages;
 
 use App\Filament\Admin\Resources\DocumentResource;
+use Filament\Actions;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
@@ -22,7 +23,9 @@ class ViewDocument extends ViewRecord
                 Infolists\Components\TextEntry::make('status')
                     ->badge()
                     ->color(fn ($state) => $state->color()),
-                Infolists\Components\TextEntry::make('content')
+                Infolists\Components\ViewEntry::make('content')
+                    ->label('')
+                    ->view('filament.pages.view-document-content')
                     ->columnSpanFull(),
                 Infolists\Components\RepeatableEntry::make('approvers')
                     ->label('Approval Steps')
@@ -39,5 +42,34 @@ class ViewDocument extends ViewRecord
                     ])
                     ->columnSpanFull(),
             ]);
+    }
+
+    protected function getHeaderActions(): array
+    {
+        $actions = [];
+
+        $actions[] = Actions\Action::make('export_pdf')
+            ->label('Export PDF')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('primary')
+            ->url(fn() => route('documents.export-pdf', ['document' => $this->record]))
+            ->openUrlInNewTab();
+
+        $actions[] = Actions\Action::make('export_excel')
+            ->label('Export Excel')
+            ->icon('heroicon-o-table-cells')
+            ->color('success')
+            ->url(fn() => route('documents.export-excel', ['document' => $this->record]))
+            ->openUrlInNewTab();
+
+        $actions[] = Actions\Action::make('back')
+            ->label('Return to List')
+            ->icon('heroicon-o-arrow-left')
+            ->color('gray')
+            ->url($this->getResource()::getUrl('index'));
+
+        $actions[] = Actions\EditAction::make();
+
+        return $actions;
     }
 }

@@ -35,6 +35,20 @@ class UserResource extends Resource
                     ->required()
                     ->searchable()
                     ->preload(),
+                Forms\Components\FileUpload::make('signature_image')
+                    ->label('Signature Image')
+                    ->image()
+                    ->disk('public')
+                    ->directory('signatures')
+                    ->imageEditor()
+                    ->imageEditorAspectRatios([
+                        '16:9',
+                        '4:3',
+                        '1:1',
+                    ])
+                    ->maxSize(2048)
+                    ->helperText('Upload signature image (Max: 2MB)')
+                    ->columnSpanFull(),
                 Forms\Components\TextInput::make('password')
                     ->password()
                     ->dehydrateStateUsing(fn ($state) => Hash::make($state))
@@ -55,6 +69,10 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('department.name')
                     ->label('Department')
                     ->searchable(),
+                Tables\Columns\ImageColumn::make('signature_image')
+                    ->label('Signature')
+                    ->disk('public')
+                    ->height(40),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

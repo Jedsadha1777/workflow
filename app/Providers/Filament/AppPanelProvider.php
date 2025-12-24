@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\App\Pages\Auth\EditProfile;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -27,13 +28,17 @@ class AppPanelProvider extends PanelProvider
     {
         return $panel
             ->default()
+            ->brandLogo(asset('images/logo.png'))
+            ->brandName('AKT')
+            ->brandLogoHeight('2rem') 
             ->id('app')
             ->path('/')
             ->login()
+            ->profile(EditProfile::class)
             ->authGuard('web')
             ->homeUrl('/articles')
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Red,
             ])
             ->discoverResources(in: app_path('Filament/App/Resources'), for: 'App\\Filament\\App\\Resources')
             ->discoverPages(in: app_path('Filament/App/Pages'), for: 'App\\Filament\\App\\Pages')
@@ -54,8 +59,8 @@ class AppPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 \App\Http\Middleware\FilamentAuthenticate::class,
-            ])
-            ->spa();
+            ]);
+            // ->spa();
     }
 
     public function register(): void
