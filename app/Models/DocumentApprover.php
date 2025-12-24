@@ -15,6 +15,7 @@ class DocumentApprover extends Model
         'document_id',
         'approver_id',
         'signature_cell',
+        'approved_date_cell',
         'step_order',
         'status',
         'comment',

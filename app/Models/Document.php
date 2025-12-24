@@ -118,6 +118,7 @@ class Document extends Model
         return 'none';
     }
 
+    // ฟังก์ชันช่วยสำหรับ form data
     public function getFormValue(string $sheet, string $cell): mixed
     {
         return $this->form_data[$sheet][$cell] ?? null;
@@ -157,10 +158,7 @@ class Document extends Model
 
     public function setApprovedDate(string $sheet, string $cell, ?string $date = null): void
     {
-        $this->setFormValue($sheet, $cell, [
-            'type' => 'date',
-            'date' => $date ?? now()->format('Y-m-d H:i:s'),
-        ]);
+        $this->setFormValue($sheet, $cell, $date ?? now()->toISOString());
     }
 
     public function renderWithData(): string
@@ -177,6 +175,7 @@ class Document extends Model
             $sheetName = $sheet['name'];
             $formData = $this->form_data[$sheetName] ?? [];
 
+            // Replace form fields with actual data
             foreach ($formData as $cell => $value) {
                 if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                     $approver = User::find($value['approver_id']);
@@ -189,6 +188,7 @@ class Document extends Model
                     
                     $sheetHtml = str_replace('[signature cell="' . $cell . '"]', $signatureHtml, $sheetHtml);
                 } else {
+                    // Replace other form fields
                     $sheetHtml = preg_replace(
                         '/\[(?:text|email|tel|number|date|textarea|select|checkbox)\s+[^\]]+cell="' . preg_quote($cell) . '"[^\]]*\]/',
                         htmlspecialchars($value),
@@ -203,11 +203,13 @@ class Document extends Model
         return $html;
     }
 
+    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
     public function getFormFields(): array
     {
         $fields = [];
         $content = is_string($this->content) ? json_decode($this->content, true) : $this->content;
         $sheets = $content['sheets'] ?? [];
+
 
         foreach ($sheets as $sheet) {
             $sheetName = $sheet['name'];
@@ -234,6 +236,7 @@ class Document extends Model
         return $fields;
     }
 
+
     public function getSignatureFields(): array
     {
         return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'signature');
@@ -243,4 +246,5 @@ class Document extends Model
     {
         return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'date');
     }
+    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
 }

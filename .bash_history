@@ -165,3 +165,9 @@ php artisan migrate
 php artisan optimize
 php artisan optimize:clear
 exit
+tail -f storage/logs/laravel.log 
+php artisan storage:link
+rm public/storage
+php artisan storage:link
+ls -l public/storage
+exit
