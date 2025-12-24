@@ -54,16 +54,24 @@
         $sheetHtml = $sheet['html'];
         $sheetName = $sheet['name'];
         
-        // แทนค่า form data
         if (!empty($formData) && isset($formData[$sheetName])) {
             foreach ($formData[$sheetName] as $cell => $value) {
                 if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                     $approver = \App\Models\User::find($value['approver_id']);
-                    $signatureHtml = $approver ? 
-                        '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                        '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
-                        '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
-                        '</div>' : '';
+                    
+                    if ($approver && $approver->signature_image) {
+                        $signatureUrl = asset('storage/' . $approver->signature_image);
+                        $signatureHtml = '<div style="text-align:center;padding:8px;">' .
+                            '<img src="' . $signatureUrl . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
+                            '<div style="font-size:11px;color:#6b7280;margin-top:4px;">' . htmlspecialchars($approver->name) . '</div>' .
+                            '<div style="font-size:10px;color:#9ca3af;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                            '</div>';
+                    } else {
+                        $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                            '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
+                            '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                            '</div>';
+                    }
                     
                     $sheetHtml = preg_replace(
                         '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
@@ -92,7 +100,7 @@
         }
     @endphp
     
-    <div class="  bg-white mb-4" wire:ignore>
+    <div class="bg-white mb-4" wire:ignore>
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
             <h4 class="font-semibold" style="margin: 0; flex: 1;">{{ $sheet['name'] }}</h4>
             
@@ -112,38 +120,37 @@
     </div>
 @endforeach
 
-
 <script>
-window.sheetZoomLevels ||= {};
-
-document.addEventListener('DOMContentLoaded', () =>
-    setTimeout(() =>
-        document.querySelectorAll('.zoom-controls[data-sheet-id]').forEach(c => {
-            const id = c.dataset.sheetId,
-                  w  = document.getElementById(id),
-                  t  = w?.querySelector('table');
-            if (!w) return;
-
-            window.sheetZoomLevels[id] = 1;
-            w.style.transformOrigin = 'top left';
-            w.style.transform = 'scale(1)';
-            if (!t) return;
-
-            w.style.width = w.style.height = 'auto';
-            w.offsetWidth;
-
-            const width =
-                [...t.querySelectorAll('colgroup col')]
-                    .reduce((s, c) => s + (parseFloat(c.style.width || c.getAttribute('width')) || 0), 0)
-                || t.offsetWidth;
-
-            w.style.width = width + 'px';
-            w.style.height = t.offsetHeight + 'px';
-            t.style.width = t.style.minWidth = width + 'px';
-
-            const z = document.getElementById(`zoom-level-${id}`);
-            if (z) z.textContent = '100%';
-        })
-    , 100)
-);
+document.addEventListener('DOMContentLoaded', function() {
+    const zoomStates = new Map();
+    
+    document.querySelectorAll('.zoom-controls').forEach(controls => {
+        const sheetId = controls.dataset.sheetId;
+        const wrapper = document.getElementById(sheetId);
+        const levelDisplay = document.getElementById('zoom-level-' + sheetId);
+        
+        if (!wrapper || !levelDisplay) return;
+        
+        zoomStates.set(sheetId, 100);
+        
+        controls.querySelectorAll('.zoom-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const action = this.dataset.zoomAction;
+                let currentZoom = zoomStates.get(sheetId);
+                
+                if (action === 'in') {
+                    currentZoom = Math.min(currentZoom + 10, 200);
+                } else if (action === 'out') {
+                    currentZoom = Math.max(currentZoom - 10, 50);
+                } else if (action === 'reset') {
+                    currentZoom = 100;
+                }
+                
+                zoomStates.set(sheetId, currentZoom);
+                wrapper.style.transform = `scale(${currentZoom / 100})`;
+                levelDisplay.textContent = currentZoom + '%';
+            });
+        });
+    });
+});
 </script>

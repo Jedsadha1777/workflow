@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use Illuminate\Support\Facades\Http;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class DocumentExportController extends Controller
 {
@@ -28,11 +29,32 @@ class DocumentExportController extends Controller
                 foreach ($formData[$sheetName] as $cell => $value) {
                     if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                         $approver = \App\Models\User::find($value['approver_id']);
-                        $signatureHtml = $approver ? 
-                            '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                            '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
-                            '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
-                            '</div>' : '';
+                        
+                        if ($approver && $approver->signature_image) {
+                            $signaturePath = storage_path('app/public/' . $approver->signature_image);
+                            
+                            if (file_exists($signaturePath)) {
+                                $imageData = base64_encode(file_get_contents($signaturePath));
+                                $imageMimeType = mime_content_type($signaturePath);
+                                $base64Image = 'data:' . $imageMimeType . ';base64,' . $imageData;
+                                
+                                $signatureHtml = '<div style="text-align:center;padding:8px;">' .
+                                    '<img src="' . $base64Image . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
+                                    '<div style="font-size:11px;color:#6b7280;margin-top:4px;">' . htmlspecialchars($approver->name) . '</div>' .
+                                    '<div style="font-size:10px;color:#9ca3af;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                                    '</div>';
+                            } else {
+                                $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                                    '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
+                                    '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                                    '</div>';
+                            }
+                        } else {
+                            $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                                '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
+                                '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                                '</div>';
+                        }
                         
                         $sheetHtml = preg_replace(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
@@ -87,14 +109,12 @@ class DocumentExportController extends Controller
                     'Content-Disposition' => 'attachment; filename="document-' . $document->id . '.pdf"'
                 ]);
             } else {
-                // \Log::error('PDF Service Error: ' . $response->body());
                 return response()->json([
                     'error' => 'Failed to generate PDF',
                     'message' => 'PDF service returned error'
                 ], 500);
             }
         } catch (\Exception $e) {
-            // \Log::error('PDF Service Connection Error: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Failed to connect to PDF service',
                 'message' => $e->getMessage()
@@ -119,52 +139,58 @@ class DocumentExportController extends Controller
             return response()->json(['error' => 'Excel file does not exist'], 404);
         }
 
-        // \Log::info('=== EXPORT EXCEL DEBUG ===');
-        // \Log::info('Excel Path: ' . $excelPath);
-        // \Log::info('Document ID: ' . $document->id);
-
         $spreadsheet = IOFactory::load($excelPath);
         $formData = $document->form_data ?? [];
-        
-        // \Log::info('Form Data: ' . json_encode($formData));
 
         foreach ($formData as $sheetName => $cells) {
             try {
                 $worksheet = $spreadsheet->getSheetByName($sheetName);
                 
                 if (!$worksheet) {
-                    // \Log::warning("Sheet '{$sheetName}' not found in Excel file");
                     continue;
                 }
-
-                // \Log::info("Processing sheet: {$sheetName}");
-                // \Log::info("Total cells to fill: " . count($cells));
 
                 foreach ($cells as $cellCoord => $value) {
                     try {
                         if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                             $approver = \App\Models\User::find($value['approver_id']);
-                            $cellValue = $approver ? "✓ {$approver->name}\nSigned: " . date('Y-m-d H:i', strtotime($value['signed_at'])) : '';
-                            $worksheet->setCellValue($cellCoord, $cellValue);
-                            // \Log::info("Set {$cellCoord}: signature");
+                            
+                            if ($approver && $approver->signature_image) {
+                                $signaturePath = storage_path('app/public/' . $approver->signature_image);
+                                
+                                if (file_exists($signaturePath)) {
+                                    $drawing = new Drawing();
+                                    $drawing->setName('Signature');
+                                    $drawing->setDescription($approver->name . ' - Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])));
+                                    $drawing->setPath($signaturePath);
+                                    $drawing->setCoordinates($cellCoord);
+                                    $drawing->setHeight(60);
+                                    $drawing->setOffsetX(5);
+                                    $drawing->setOffsetY(5);
+                                    $drawing->setWorksheet($worksheet);
+                                    
+                                    $worksheet->getRowDimension($worksheet->getCell($cellCoord)->getRow())->setRowHeight(60);
+                                } else {
+                                    $cellValue = "✓ {$approver->name}\nSigned: " . date('Y-m-d H:i', strtotime($value['signed_at']));
+                                    $worksheet->setCellValue($cellCoord, $cellValue);
+                                }
+                            } else {
+                                $cellValue = $approver ? "✓ {$approver->name}\nSigned: " . date('Y-m-d H:i', strtotime($value['signed_at'])) : '';
+                                $worksheet->setCellValue($cellCoord, $cellValue);
+                            }
                         } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
                             $worksheet->setCellValue($cellCoord, $value['date']);
-                            // \Log::info("Set {$cellCoord}: {$value['date']}");
                         } elseif (is_bool($value)) {
                             $worksheet->setCellValue($cellCoord, $value ? 'TRUE' : 'FALSE');
-                            // \Log::info("Set {$cellCoord}: " . ($value ? 'TRUE' : 'FALSE'));
                         } elseif ($value !== '' && $value !== null) {
                             $worksheet->setCellValue($cellCoord, $value);
-                            // \Log::info("Set {$cellCoord}: {$value}");
-                        } else {
-                            // \Log::info("Skip {$cellCoord}: empty value");
                         }
                     } catch (\Exception $e) {
-                        // \Log::error("Error setting cell {$cellCoord}: " . $e->getMessage());
+                        // Silent error
                     }
                 }
             } catch (\Exception $e) {
-                // \Log::error("Error processing sheet {$sheetName}: " . $e->getMessage());
+                // Silent error
             }
         }
 
@@ -178,8 +204,6 @@ class DocumentExportController extends Controller
         }
 
         $writer->save($tempFile);
-        
-        // \Log::info('Excel saved to: ' . $tempFile);
 
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
     }
