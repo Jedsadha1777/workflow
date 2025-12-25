@@ -176,6 +176,80 @@ HTML
                     ->label('Template Content (JSON)')
                     ->dehydrated(true)
                     ->default(''),
+
+
+                Forms\Components\Textarea::make('calculation_scripts')
+                    ->label('Calculation Scripts (JavaScript)')
+                    ->rows(10)
+                    ->placeholder('Write JavaScript to calculate values. Example: setValue("Sheet1:C1", getValue("Sheet1:A1") + getValue("Sheet1:B1"))')
+                    ->columnSpanFull()
+                    ->nullable(),
+
+                Forms\Components\Placeholder::make('สูตรที่ใช้งานได้ ')
+                    ->content(fn() => new \Illuminate\Support\HtmlString(
+                        '<strong>1. การคำนวณพื้นฐาน</strong><br/>
+// บวก ลบ คูณ หาร<br/>
+setValue("Sheet1:D1", getValue("Sheet1:A1") + getValue("Sheet1:B1"));<br/>
+setValue("Sheet1:E1", getValue("Sheet1:C1") * 1.07); // VAT 7%<br/>
+<br/>
+// ยกกำลัง (right-associative )<br/>
+setValue("Sheet1:B1", 2 ** 3 ** 2); // = 512<br/>
+setValue("Sheet1:C1", (2 ** 3) ** 2); // = 64<br/>
+
+<br/>
+<strong>2. Unary operators </strong><br/>
+const price = parseFloat(getValue("Sheet1:A1")) || 0;<br/>
+const discount = -price * 0.1; // เครื่องหมายลบ<br/>
+setValue("Sheet1:B1", -discount); // บวกกลับ<br/>
+<br/>
+// หลายชั้น <br/>
+const negative = --5; // = 5 (double negative)<br/>
+<br/>
+
+<strong>3. Operator Precedence </strong><br/>
+setValue("Sheet1:A1", 1 + 2 * 3); // = 7 <br/>
+setValue("Sheet1:A2", 10 - 2 * 3); // = 4 <br/>
+setValue("Sheet1:A3", 2 ** 3 * 4); // = 32 <br/>
+setValue("Sheet1:A4", (1 + 2) * 3); // = 9<br/>
+<br/>
+<strong>4. Short-circuit สำหรับ ||</strong><br/>
+// ถ้า A1 มีค่า → ไม่เรียก getValue()<br/>
+const value = parseFloat(getValue("Sheet1:A1")) || parseFloat(getValue("Sheet1:B1")) || 0;<br/>
+<br/>
+// ใช้ default value<br/>
+const qty = parseFloat(getValue("Sheet1:Qty")) || 1;<br/>
+<br/>
+<strong>5. ใช้ตัวแปร </strong><br/>
+const price = parseFloat(getValue("Sheet1:A1")) || 0;<br/>
+const qty = parseFloat(getValue("Sheet1:B1")) || 0;<br/>
+const discount = parseFloat(getValue("Sheet1:C1")) || 0;<br/>
+<br/>
+const subtotal = price * qty;<br/>
+const afterDiscount = subtotal - discount;<br/>
+const vat = afterDiscount * 0.07;<br/>
+const total = afterDiscount + vat;<br/>
+<br/>
+setValue("Sheet1:D1", subtotal);<br/>
+setValue("Sheet1:E1", afterDiscount);<br/>
+setValue("Sheet1:F1", vat);<br/>
+setValue("Sheet1:G1", total);<br/>
+<br/>
+<strong>6. Functions ที่รองรับ</strong><br/>
+parseFloat(value)   // แปลงเป็นตัวเลข<br/>
+getValue("Sheet:Cell")  // ดึงค่าจาก cell<br/>
+setValue("Sheet:Cell", value)  // เขียนค่าลง cell<br/>
+<br/>
+
+❌ไม่รองรับ:<br/>
+if/else , ternary , loops, arrays, objects<br/>
+Math functions, string ops<br/>
+Comparison operators
+
+'
+                    ))
+
+
+
             ]),
         ]);
     }

@@ -11,6 +11,7 @@ class TemplateDocument extends Model
         'name',
         'excel_file',
         'content',
+        'calculation_scripts',
         'is_active',
     ];
 

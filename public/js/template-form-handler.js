@@ -1,7 +1,8 @@
-window.templateFormHandler = function(formId, existingData) {
+window.templateFormHandler = function(formId, existingData, calculationScripts) {
     return {
         formId: formId,
         existingData: existingData,
+        calculationScripts: calculationScripts,
         initialized: false,
         formData: {},
         
@@ -13,11 +14,60 @@ window.templateFormHandler = function(formId, existingData) {
             
             console.log('Alpine init for:', this.formId);
             console.log('Existing data:', this.existingData);
+            console.log('Calculation scripts:', this.calculationScripts);
             
             this.$nextTick(() => {
                 this.renderFields();
                 this.setupEventListeners();
+                this.setupCalculationFunctions();
             });
+        },
+        
+        setupCalculationFunctions() {
+            const container = this.$el;
+            const self = this;
+            
+            window.getValue = function(cellRef) {
+                const [sheet, cell] = cellRef.split(':');
+                if (!sheet || !cell) return '';
+                
+                const td = container.querySelector('td[data-cell="' + cellRef + '"]');
+                if (!td) return '';
+                
+                const field = td.querySelector('input, select, textarea');
+                if (!field) return '';
+                
+                if (field.type === 'checkbox') {
+                    return field.checked;
+                }
+                return field.value || '';
+            };
+            
+            window.setValue = function(cellRef, value) {
+                const [sheet, cell] = cellRef.split(':');
+                if (!sheet || !cell) return;
+                
+                const td = container.querySelector('td[data-cell="' + cellRef + '"]');
+                if (!td) return;
+                
+                const field = td.querySelector('input, select, textarea');
+                
+                if (field) {
+                    // มี input field
+                    if (field.type === 'checkbox') {
+                        field.checked = !!value;
+                    } else {
+                        field.value = value;
+                    }
+                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                    // ไม่มี input field → แสดงเป็นข้อความใน td
+                    // ใช้ innerHTML เพื่อบังคับทับ #VALUE!
+                    td.innerHTML = '<strong style="color: #059669;">' + value + '</strong>';
+                }
+            };
+            
+            console.log('✓ Calculation functions ready: getValue(), setValue()');
         },
         
         renderFields() {
@@ -43,6 +93,15 @@ window.templateFormHandler = function(formId, existingData) {
                         content.innerHTML = window.renderFormFields(content.innerHTML);
                         content.setAttribute('data-processed', 'true');
                         console.log('✓ Rendered template content');
+                        
+                        // ลบ #VALUE!, #DIV/0!, #REF! ออกจาก cells ทั้งหมด
+                        content.querySelectorAll('td[data-cell]').forEach(td => {
+                            const text = td.textContent.trim();
+                            if (text === '#VALUE!' || text === '#DIV/0!' || text === '#REF!' || text === '#N/A' || text === '#NAME?') {
+                                td.textContent = '';
+                            }
+                        });
+                        console.log('✓ Cleared Excel errors');
                     } catch (e) {
                         console.error('Render error:', e);
                     }
@@ -57,10 +116,23 @@ window.templateFormHandler = function(formId, existingData) {
                     
                     this.initialized = true;
                     console.log('Template initialized');
+                    
+                    this.runCalculations();
                 });
             };
             
             tryRender();
+        },
+        
+        runCalculations() {
+            if (!this.calculationScripts) return;
+            
+            try {
+                eval(this.calculationScripts);
+                console.log('✓ Calculations executed');
+            } catch (e) {
+                console.error('Calculation error:', e);
+            }
         },
         
         loadDataToFields() {
@@ -73,11 +145,9 @@ window.templateFormHandler = function(formId, existingData) {
                     const value = this.formData[sheet][cell];
                     const cellRef = sheet + ':' + cell;
                     
-                    // หา <td> ที่มี data-cell
                     const td = container.querySelector('td[data-cell="' + cellRef + '"]');
                     
                     if (td) {
-                        // หา field ใน td นั้น
                         const field = td.querySelector('input, select, textarea');
                         
                         if (field) {
@@ -109,6 +179,7 @@ window.templateFormHandler = function(formId, existingData) {
                 
                 e.stopPropagation();
                 this.collectFormData();
+                this.runCalculations();
             }, true);
             
             container.addEventListener('input', (e) => {
@@ -120,6 +191,7 @@ window.templateFormHandler = function(formId, existingData) {
         collectFormData() {
             const container = this.$el;
             const data = {};
+
             
             container.querySelectorAll('input, select, textarea').forEach(field => {
                 const cellRef = field.closest('td')?.getAttribute('data-cell') || field.getAttribute('data-cell');
@@ -128,12 +200,14 @@ window.templateFormHandler = function(formId, existingData) {
                     if (sheet && cell) {
                         if (!data[sheet]) data[sheet] = {};
                         data[sheet][cell] = field.type === 'checkbox' ? field.checked : field.value;
+                        console.log('Added calculated:', sheet + ':' + cell, '=', this.formData[sheet][cell]);
                     }
                 }
             });
             
             this.formData = data;
             this.$wire.set('data.form_data', JSON.stringify(data), false);
+
         }
     };
 };

@@ -56,6 +56,8 @@
         
         if (!empty($formData) && isset($formData[$sheetName])) {
             foreach ($formData[$sheetName] as $cell => $value) {
+                
+
                 if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                     $approver = \App\Models\User::find($value['approver_id']);
                     
@@ -63,13 +65,10 @@
                         $signatureUrl = asset('storage/' . $approver->signature_image);
                         $signatureHtml = '<div style="text-align:center;padding:8px;">' .
                             '<img src="' . $signatureUrl . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
-                            '<div style="font-size:11px;color:#6b7280;margin-top:4px;">' . htmlspecialchars($approver->name) . '</div>' .
-                            '<div style="font-size:10px;color:#9ca3af;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
                             '</div>';
                     } else {
                         $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
                             '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
-                            '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
                             '</div>';
                     }
                     
@@ -79,7 +78,8 @@
                         $sheetHtml
                     );
                 } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
-                    $dateHtml = '<div style="padding:4px;"><strong>' . htmlspecialchars($value['date']) . '</strong></div>';
+                    $dateHtml = '<div style="padding:4px;">' . (new DateTime($value['date']))->format('d/m/Y') . '</div>';
+        
                     
                     $sheetHtml = preg_replace(
                         '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
@@ -87,11 +87,11 @@
                         $sheetHtml
                     );
                 } else {
-                    $escapedValue = htmlspecialchars($value);
+                    $escapedValue = is_bool($value) ? ($value ? 'TRUE' : 'FALSE') : htmlspecialchars($value);
                     $sheetHtml = preg_replace_callback(
                         '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
                         function($matches) use ($escapedValue) {
-                            return '<td' . $matches[1] . '><div style="padding:4px;"><strong>' . $escapedValue . '</strong></div></td>';
+                             return '<td' . $matches[1] . '><div style="padding:4px;">' . $escapedValue . '</div></td>';
                         },
                         $sheetHtml
                     );

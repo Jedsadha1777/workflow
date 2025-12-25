@@ -110,7 +110,7 @@ function initLuckysheetEditor(wrapperId, config) {
             'https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js',
             'https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js',
             'https://cdn.jsdelivr.net/npm/luckyexcel/dist/luckyexcel.umd.js',
-            '/js/luckysheet-to-html.js?v=2'
+            '/js/luckysheet-to-html.js'
         ];
 
         let loaded = 0;

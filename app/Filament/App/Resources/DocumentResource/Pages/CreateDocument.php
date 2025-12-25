@@ -4,6 +4,7 @@ namespace App\Filament\App\Resources\DocumentResource\Pages;
 
 use App\Enums\DocumentStatus;
 use App\Filament\App\Resources\DocumentResource;
+use App\Services\CalculationService;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateDocument extends CreateRecord
@@ -13,32 +14,55 @@ class CreateDocument extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        \Log::info('=== mutateFormDataBeforeCreate START ===');
+        
         $data['creator_id'] = auth()->id();
         $data['department_id'] = auth()->user()->department_id;
         $data['status'] = DocumentStatus::DRAFT;
         
-        // ดึง content จาก template
         if (isset($data['template_document_id'])) {
             $template = \App\Models\TemplateDocument::find($data['template_document_id']);
+            \Log::info('Template loaded', [
+                'template_id' => $data['template_document_id'],
+                'has_content' => !!$template?->content,
+                'has_scripts' => !!$template?->calculation_scripts,
+                'scripts' => $template?->calculation_scripts
+            ]);
+            
             if ($template && $template->content) {
                 $data['content'] = $template->content;
             }
+            
+            if ($template && $template->calculation_scripts) {
+                $formData = isset($data['form_data']) && is_string($data['form_data']) 
+                    ? json_decode($data['form_data'], true) 
+                    : ($data['form_data'] ?? []);
+                
+                \Log::info('Before calculation', ['formData' => $formData]);
+                
+                $data['form_data'] = CalculationService::executeCalculations(
+                    $formData, 
+                    $template->calculation_scripts
+                );
+                
+                \Log::info('After calculation', ['formData' => $data['form_data']]);
+            }
         }
         
-        // Parse form_data
         if (isset($data['form_data']) && is_string($data['form_data'])) {
             $parsed = json_decode($data['form_data'], true);
             $data['form_data'] = $parsed ?: [];
-        } else {
+        } else if (!isset($data['form_data'])) {
             $data['form_data'] = [];
         }
+        
+        \Log::info('=== mutateFormDataBeforeCreate END ===', ['final_form_data' => $data['form_data']]);
         
         return $data;
     }
 
     protected function getRedirectUrl(): string
     {
-        // Redirect to setup approval page
         return static::getResource()::getUrl('setup-approval', ['record' => $this->record]);
     }
 }

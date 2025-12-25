@@ -51,7 +51,7 @@ class DocumentResource extends Resource
                     ->required()
                     ->searchable()
                     ->preload()
-                    ->default(auth()->user()->department_id),
+                    ->default(auth()->user()->department_id ?? null),
 
                 Forms\Components\Select::make('status')
                     ->options(DocumentStatus::class)
@@ -62,7 +62,7 @@ class DocumentResource extends Resource
                     ->label('Template Form')
                     ->columnSpanFull()
                     ->content(function ($get, $record) {
-                        $templateId = $get('template_document_id');
+                        $templateId = $record ? $record->template_document_id : $get('template_document_id');
                         if (!$templateId) {
                             return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
                         }
@@ -82,6 +82,8 @@ class DocumentResource extends Resource
                         if ($record && $record->form_data) {
                             $existingFormData = is_array($record->form_data) ? $record->form_data : json_decode($record->form_data, true);
                         }
+
+                        $calculationScripts = $template->calculation_scripts ?? '';
 
                         $html = '<style>
                             .zoom-controls {
@@ -122,7 +124,7 @@ class DocumentResource extends Resource
                             [x-cloak] { display: none !important; }
                         </style>';
 
-                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ')" x-cloak>';
+                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ', ' . htmlspecialchars(json_encode($calculationScripts), ENT_QUOTES) . ')" x-cloak>';
 
                         $sheetIndex = 0;
                         foreach ($content['sheets'] as $sheet) {

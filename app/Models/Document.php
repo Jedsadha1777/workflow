@@ -158,7 +158,11 @@ class Document extends Model
 
     public function setApprovedDate(string $sheet, string $cell, ?string $date = null): void
     {
-        $this->setFormValue($sheet, $cell, $date ?? now()->toISOString());
+        // $this->setFormValue($sheet, $cell, $date ?? now()->toISOString());
+         $this->setFormValue($sheet, $cell, [
+            'type' => 'date',
+            'date' => $date ?? now()->toISOString(),
+        ]);
     }
 
     public function renderWithData(): string

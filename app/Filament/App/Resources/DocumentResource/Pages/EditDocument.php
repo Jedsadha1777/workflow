@@ -3,6 +3,7 @@
 namespace App\Filament\App\Resources\DocumentResource\Pages;
 
 use App\Filament\App\Resources\DocumentResource;
+use App\Services\CalculationService;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
@@ -20,14 +21,42 @@ class EditDocument extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+
+         \Log::info('=== mutateFormDataBeforeSave START ===');
+
+         
         // Parse form_data
         if (isset($data['form_data']) && is_string($data['form_data'])) {
             $parsed = json_decode($data['form_data'], true);
             $data['form_data'] = $parsed ?: [];
         }
+
+        // ใช้ template จาก record (เพราะ field ถูก disabled)
+        if ($this->record && $this->record->template_document_id) {
+            $template = \App\Models\TemplateDocument::find($this->record->template_document_id);
+            
+            \Log::info('Template loaded', [
+                'template_id' => $this->record->template_document_id,
+                'has_scripts' => !!$template?->calculation_scripts,
+                'scripts' => $template?->calculation_scripts
+            ]);
+
+
+            if ($template && $template->calculation_scripts) {
+                \Log::info('Before calculation', ['formData' => $data['form_data']]);
+
+                $data['form_data'] = CalculationService::executeCalculations(
+                    $data['form_data'], 
+                    $template->calculation_scripts
+                );
+
+                \Log::info('After calculation', ['formData' => $data['form_data']]);
+            }
+        }
         
-        // ไม่แตะ content (ใช้จาก database เดิม)
         unset($data['content']);
+
+        \Log::info('=== mutateFormDataBeforeSave END ===', ['final_form_data' => $data['form_data']]);
         
         return $data;
     }

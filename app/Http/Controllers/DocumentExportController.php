@@ -64,6 +64,7 @@ class DocumentExportController extends Controller
                     } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
                         $dateHtml = '<div style="padding:4px;"><strong>' . htmlspecialchars($value['date']) . '</strong></div>';
                         
+                        
                         $sheetHtml = preg_replace(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
                             '<td$1>' . $dateHtml . '</td>',
@@ -152,6 +153,14 @@ class DocumentExportController extends Controller
 
                 foreach ($cells as $cellCoord => $value) {
                     try {
+
+                        // ถ้า cell มีสูตร → ข้ามไป ไม่เขียนทับ
+                        $cell = $worksheet->getCell($cellCoord);
+                        if ($cell->isFormula()) {
+                            continue;
+                        }
+
+
                         if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                             $approver = \App\Models\User::find($value['approver_id']);
                             
