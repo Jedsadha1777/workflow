@@ -171,3 +171,12 @@ rm public/storage
 php artisan storage:link
 ls -l public/storage
 exit
+php aritsan migrate
+php artisan migration
+php artisan migrate
+php artisan optimze:clear
+php artisan optimzie:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan config:clear
+exit
