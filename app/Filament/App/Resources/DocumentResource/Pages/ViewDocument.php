@@ -91,11 +91,7 @@ class ViewDocument extends ViewRecord
             ->openUrlInNewTab();
 
 
-        $actions[] = Actions\Action::make('back')
-            ->label('Return to List')
-            ->icon('heroicon-o-arrow-left')
-            ->color('gray')
-            ->url($this->getResource()::getUrl('index'));
+        
 
 
         $currentApproval = $this->record->approvers()
@@ -202,6 +198,13 @@ class ViewDocument extends ViewRecord
                     return redirect($this->getResource()::getUrl('index'));
                 });
         }
+
+
+        $actions[] = Actions\Action::make('back')
+            ->label('Return to List')
+            ->icon('heroicon-o-arrow-left')
+            ->color('gray')
+            ->url($this->getResource()::getUrl('index'));
 
         return $actions;
     }

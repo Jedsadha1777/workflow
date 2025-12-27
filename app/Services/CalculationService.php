@@ -91,10 +91,40 @@ class Tokenizer
                 $this->pos += 2;
                 continue;
             }
+            if ($twoChar === '>=') {
+                $tokens[] = new Token('COMPARISON', '>=');
+                $this->pos += 2;
+                continue;
+            }
+            if ($twoChar === '<=') {
+                $tokens[] = new Token('COMPARISON', '<=');
+                $this->pos += 2;
+                continue;
+            }
+            if ($twoChar === '==') {
+                $tokens[] = new Token('COMPARISON', '==');
+                $this->pos += 2;
+                continue;
+            }
+            if ($twoChar === '!=') {
+                $tokens[] = new Token('COMPARISON', '!=');
+                $this->pos += 2;
+                continue;
+            }
 
             // Single char operators
             if (in_array($char, ['+', '-', '*', '/'])) {
                 $tokens[] = new Token('OPERATOR', $char);
+                $this->pos++;
+                continue;
+            }
+            if ($char === '>') {
+                $tokens[] = new Token('COMPARISON', '>');
+                $this->pos++;
+                continue;
+            }
+            if ($char === '<') {
+                $tokens[] = new Token('COMPARISON', '<');
                 $this->pos++;
                 continue;
             }
@@ -122,6 +152,11 @@ class Tokenizer
             }
             if ($char === '=') {
                 $tokens[] = new Token('ASSIGN', '=');
+                $this->pos++;
+                continue;
+            }
+            if ($char === '?') {
+                $tokens[] = new Token('QUESTION', '?');
                 $this->pos++;
                 continue;
             }
@@ -156,28 +191,33 @@ class Tokenizer
         }
         $value = substr($this->input, $start, $this->pos - $start);
         
-        if (in_array($value, ['const', 'let', 'var', 'if', 'else'])) {
-            return new Token('KEYWORD', $value);
-        }
+        $keywords = ['const', 'let', 'var'];
+        $type = in_array($value, $keywords) ? 'KEYWORD' : 'IDENTIFIER';
         
-        return new Token('IDENTIFIER', $value);
+        return new Token($type, $value);
     }
 
     private function readString(string $quote): Token
     {
-        $this->pos++; // Skip opening quote
+        $this->pos++; // skip opening quote
         $start = $this->pos;
+        
         while ($this->pos < $this->length && $this->input[$this->pos] !== $quote) {
+            if ($this->input[$this->pos] === '\\') {
+                $this->pos++; // skip escape char
+            }
             $this->pos++;
         }
+        
         $value = substr($this->input, $start, $this->pos - $start);
-        $this->pos++; // Skip closing quote
+        $this->pos++; // skip closing quote
+        
         return new Token('STRING', $value);
     }
 
-    private function peek(): string
+    private function peek(): ?string
     {
-        return $this->pos + 1 < $this->length ? $this->input[$this->pos + 1] : '';
+        return $this->pos + 1 < $this->length ? $this->input[$this->pos + 1] : null;
     }
 }
 
@@ -191,7 +231,7 @@ class NumberNode extends ASTNode
 {
     public function __construct(public float $value) {}
     
-    public function evaluate(array &$variables, array &$formData): float
+    public function evaluate(array &$variables, array &$formData): mixed
     {
         return $this->value;
     }
@@ -201,7 +241,7 @@ class StringNode extends ASTNode
 {
     public function __construct(public string $value) {}
     
-    public function evaluate(array &$variables, array &$formData): string
+    public function evaluate(array &$variables, array &$formData): mixed
     {
         return $this->value;
     }
@@ -241,6 +281,31 @@ class BinaryOpNode extends ASTNode
     }
 }
 
+class ComparisonNode extends ASTNode
+{
+    public function __construct(
+        public ASTNode $left,
+        public string $operator,
+        public ASTNode $right
+    ) {}
+    
+    public function evaluate(array &$variables, array &$formData): mixed
+    {
+        $left = $this->left->evaluate($variables, $formData);
+        $right = $this->right->evaluate($variables, $formData);
+        
+        return match($this->operator) {
+            '>' => $left > $right,
+            '<' => $left < $right,
+            '>=' => $left >= $right,
+            '<=' => $left <= $right,
+            '==' => $left == $right,
+            '!=' => $left != $right,
+            default => false
+        };
+    }
+}
+
 class UnaryOpNode extends ASTNode
 {
     public function __construct(
@@ -272,6 +337,22 @@ class LogicalOrNode extends ASTNode
         $left = $this->left->evaluate($variables, $formData);
         if ($left) return $left; // short-circuit
         return $this->right->evaluate($variables, $formData);
+    }
+}
+
+class TernaryNode extends ASTNode
+{
+    public function __construct(
+        public ASTNode $condition,
+        public ASTNode $trueExpr,
+        public ASTNode $falseExpr
+    ) {}
+    
+    public function evaluate(array &$variables, array &$formData): mixed
+    {
+        $condition = $this->condition->evaluate($variables, $formData);
+        return $condition ? $this->trueExpr->evaluate($variables, $formData) 
+                         : $this->falseExpr->evaluate($variables, $formData);
     }
 }
 
@@ -395,24 +476,54 @@ class SimpleParser
 
     private function parseExpression(): ASTNode
     {
-        return $this->parseLogicalOr();
+        return $this->parseTernary();
     }
 
-    // Precedence level 1: || (lowest)
+    // Precedence level 0: ternary (lowest)
+    private function parseTernary(): ASTNode
+    {
+        $condition = $this->parseLogicalOr();
+        
+        if ($this->current() && $this->current()->type === 'QUESTION') {
+            $this->advance();
+            $trueExpr = $this->parseLogicalOr();
+            $this->expect('COLON');
+            $falseExpr = $this->parseTernary();
+            return new TernaryNode($condition, $trueExpr, $falseExpr);
+        }
+        
+        return $condition;
+    }
+
+    // Precedence level 1: || 
     private function parseLogicalOr(): ASTNode
     {
-        $left = $this->parseAdditive();
+        $left = $this->parseComparison();
         
         while ($this->current() && $this->current()->type === 'LOGICAL_OR') {
             $this->advance();
-            $right = $this->parseAdditive();
+            $right = $this->parseComparison();
             $left = new LogicalOrNode($left, $right);
         }
         
         return $left;
     }
 
-    // Precedence level 2: + -
+    // Precedence level 2: comparison operators
+    private function parseComparison(): ASTNode
+    {
+        $left = $this->parseAdditive();
+        
+        while ($this->current() && $this->current()->type === 'COMPARISON') {
+            $op = $this->advance()->value;
+            $right = $this->parseAdditive();
+            $left = new ComparisonNode($left, $op, $right);
+        }
+        
+        return $left;
+    }
+
+    // Precedence level 3: + -
     private function parseAdditive(): ASTNode
     {
         $left = $this->parseMultiplicative();
@@ -427,56 +538,57 @@ class SimpleParser
         return $left;
     }
 
-    // Precedence level 3: * /
+    // Precedence level 4: * /
     private function parseMultiplicative(): ASTNode
     {
-        $left = $this->parsePower();
+        $left = $this->parseExponentiation();
         
         while ($this->current() && $this->current()->type === 'OPERATOR' 
                && in_array($this->current()->value, ['*', '/'])) {
             $op = $this->advance()->value;
-            $right = $this->parsePower();
+            $right = $this->parseExponentiation();
             $left = new BinaryOpNode($left, $op, $right);
         }
         
         return $left;
     }
 
-    // Precedence level 4: ** (right-associative)
-    private function parsePower(): ASTNode
+    // Precedence level 5: **
+    private function parseExponentiation(): ASTNode
     {
         $left = $this->parseUnary();
         
         if ($this->current() && $this->current()->type === 'OPERATOR' 
             && $this->current()->value === '**') {
             $this->advance();
-            $right = $this->parsePower(); // recursive for right-associative
+            $right = $this->parseExponentiation(); // right-associative
             return new BinaryOpNode($left, '**', $right);
         }
         
         return $left;
     }
 
-    // Precedence level 5: unary +/-
+    // Precedence level 6: unary + -
     private function parseUnary(): ASTNode
     {
         $token = $this->current();
         
         if ($token && $token->type === 'OPERATOR' && in_array($token->value, ['+', '-'])) {
             $op = $this->advance()->value;
-            $operand = $this->parseUnary(); // recursive for multiple unary
+            $operand = $this->parseUnary();
             return new UnaryOpNode($op, $operand);
         }
         
         return $this->parsePrimary();
     }
 
+    // Precedence level 7: primary (highest)
     private function parsePrimary(): ASTNode
     {
         $token = $this->current();
         
         if (!$token) {
-            return new NumberNode(0);
+            throw new \Exception('Unexpected end of input');
         }
         
         // Number
@@ -491,18 +603,24 @@ class SimpleParser
             return new StringNode($token->value);
         }
         
-        // Function call
-        if ($token->type === 'IDENTIFIER' && $this->peek() && $this->peek()->type === 'LPAREN') {
-            return $this->parseFunctionCall();
-        }
-        
-        // Variable
+        // Identifier (variable or function call)
         if ($token->type === 'IDENTIFIER') {
+            $name = $token->value;
             $this->advance();
-            return new VariableNode($token->value);
+            
+            // Function call
+            if ($this->current() && $this->current()->type === 'LPAREN') {
+                $this->advance();
+                $args = $this->parseArguments();
+                $this->expect('RPAREN');
+                return new CallNode($name, $args);
+            }
+            
+            // Variable
+            return new VariableNode($name);
         }
         
-        // Parentheses
+        // Parenthesized expression
         if ($token->type === 'LPAREN') {
             $this->advance();
             $expr = $this->parseExpression();
@@ -510,25 +628,25 @@ class SimpleParser
             return $expr;
         }
         
-        return new NumberNode(0);
+        throw new \Exception("Unexpected token: {$token->type}");
     }
 
-    private function parseFunctionCall(): CallNode
+    private function parseArguments(): array
     {
-        $funcName = $this->advance()->value;
-        $this->expect('LPAREN');
-        
         $args = [];
-        while ($this->current() && $this->current()->type !== 'RPAREN') {
-            $args[] = $this->parseExpression();
-            if ($this->current() && $this->current()->type === 'COMMA') {
-                $this->advance();
-            }
+        
+        if ($this->current() && $this->current()->type === 'RPAREN') {
+            return $args;
         }
         
-        $this->expect('RPAREN');
+        $args[] = $this->parseExpression();
         
-        return new CallNode($funcName, $args);
+        while ($this->current() && $this->current()->type === 'COMMA') {
+            $this->advance();
+            $args[] = $this->parseExpression();
+        }
+        
+        return $args;
     }
 
     private function current(): ?Token
@@ -536,23 +654,16 @@ class SimpleParser
         return $this->tokens[$this->pos] ?? null;
     }
 
-    private function peek(): ?Token
+    private function advance(): Token
     {
-        return $this->tokens[$this->pos + 1] ?? null;
+        return $this->tokens[$this->pos++];
     }
 
-    private function advance(): ?Token
+    private function expect(string $type): Token
     {
         $token = $this->current();
-        $this->pos++;
-        return $token;
-    }
-
-    private function expect(string $type, mixed $value = null): Token
-    {
-        $token = $this->current();
-        if (!$token || $token->type !== $type || ($value !== null && $token->value !== $value)) {
-            throw new \Exception("Expected $type" . ($value ? " '$value'" : ''));
+        if (!$token || $token->type !== $type) {
+            throw new \Exception("Expected {$type}, got " . ($token ? $token->type : 'EOF'));
         }
         return $this->advance();
     }

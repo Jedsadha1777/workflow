@@ -164,12 +164,12 @@ class DocumentResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('title')->searchable(),
-                Tables\Columns\TextColumn::make('template.name')
-                    ->label('Template'),
                 Tables\Columns\TextColumn::make('creator.name')
-                    ->label('Creator'),
+                    ->label('Creator')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('department.name')
-                    ->label('Department'),
+                    ->label('Department')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn($state) => $state->color()),
@@ -181,6 +181,24 @@ class DocumentResource extends Resource
                 Tables\Filters\SelectFilter::make('template_document_id')
                     ->label('Template')
                     ->relationship('template', 'name'),
+                Tables\Filters\Filter::make('created_at')
+                    ->form([
+                        Forms\Components\DatePicker::make('created_from')
+                            ->label('From'),
+                        Forms\Components\DatePicker::make('created_until')
+                            ->label('To'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['created_from'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['created_until'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
+                            );
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -214,27 +232,7 @@ class DocumentResource extends Resource
                         ]);
                     })
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id() && $record->approvers()->count() > 0),
-            ])
-            ->modifyQueryUsing(function (Builder $query) {
-                $user = auth()->user();
-
-                if ($user->isAdmin()) {
-                    return $query;
-                }
-
-                return $query->where(function ($q) use ($user) {
-                    $q->where('creator_id', $user->id)
-                        ->orWhere(function ($q) use ($user) {
-                            $q->where('department_id', $user->department_id)
-                                ->where('status', DocumentStatus::DRAFT);
-                        })
-                        ->orWhereHas('approvers', function ($q) use ($user) {
-                            $q->where('approver_id', $user->id)
-                                ->where('status', ApprovalStatus::PENDING)
-                                ->whereColumn('step_order', 'documents.current_step');
-                        });
-                });
-            });
+            ]);
     }
 
     public static function getPages(): array

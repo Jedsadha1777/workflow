@@ -154,7 +154,7 @@ class DocumentExportController extends Controller
                 foreach ($cells as $cellCoord => $value) {
                     try {
 
-                        // ถ้า cell มีสูตร → ข้ามไป ไม่เขียนทับ
+                        // ถ้า cell มีสูตร skip 
                         $cell = $worksheet->getCell($cellCoord);
                         if ($cell->isFormula()) {
                             continue;
