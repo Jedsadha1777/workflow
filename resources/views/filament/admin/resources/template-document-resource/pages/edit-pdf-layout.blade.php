@@ -249,17 +249,78 @@
                         try {
                             const cursor = this.editor.getCursor();
                             const currentValue = this.editor.getValue();
+                            
+                            console.log('=== BEFORE BEAUTIFY ===');
+                            console.log('Length:', currentValue.length);
+                            console.log('First 500 chars:', currentValue.substring(0, 500));
+                            console.log('Has <table:', currentValue.includes('<table'));
+                            console.log('Has <tr:', currentValue.includes('<tr'));
+                            console.log('Has <td:', currentValue.includes('<td'));
+                            
+                            // นับจำนวน tags
+                            const tableCount = (currentValue.match(/<table/g) || []).length;
+                            const trCount = (currentValue.match(/<tr/g) || []).length;
+                            const tdCount = (currentValue.match(/<td/g) || []).length;
+                            console.log('Tag counts - table:', tableCount, 'tr:', trCount, 'td:', tdCount);
+                            
+                            // นับบรรทัดว่างด้านบน
+                            const leadingNewlines = currentValue.match(/^\n*/)[0];
+                            
                             const beautified = html_beautify(currentValue, {
                                 indent_size: 2,
                                 wrap_line_length: 0,
-                                preserve_newlines: false,
+                                preserve_newlines: true,
+                                max_preserve_newlines: 2,
                                 unformatted: []
                             });
                             
+                            console.log('=== AFTER BEAUTIFY ===');
+                            console.log('Length:', beautified.length);
+                            console.log('First 500 chars:', beautified.substring(0, 500));
+                            
+                            const tableCountAfter = (beautified.match(/<table/g) || []).length;
+                            const trCountAfter = (beautified.match(/<tr/g) || []).length;
+                            const tdCountAfter = (beautified.match(/<td/g) || []).length;
+                            console.log('Tag counts - table:', tableCountAfter, 'tr:', trCountAfter, 'td:', tdCountAfter);
+                            
+                            // เช็คว่า tags หายหรือเปล่า
+                            if (tableCountAfter < tableCount || trCountAfter < trCount || tdCountAfter < tdCount) {
+                                alert(`Format HTML cancelled: Tags lost!\nBefore: table=${tableCount}, tr=${trCount}, td=${tdCount}\nAfter: table=${tableCountAfter}, tr=${trCountAfter}, td=${tdCountAfter}`);
+                                return;
+                            }
+                            
                             if (beautified && beautified.length > 0) {
-                                this.editor.setValue('');
-                                this.editor.setValue(beautified);
+                                // เอาบรรทัดว่างด้านบนกลับมา
+                                const result = leadingNewlines + beautified;
+                                
+                                console.log('=== SETTING TO EDITOR ===');
+                                console.log('Result length:', result.length);
+                                
+                                // ไม่ clear ก่อน - set ตรงๆ
+                                this.editor.setValue(result);
+                                
+                                // เช็คว่า set สำเร็จไหม
+                                const afterSet = this.editor.getValue();
+                                console.log('After setValue length:', afterSet.length);
+                                console.log('Data loss in setValue:', ((result.length - afterSet.length) / result.length * 100).toFixed(2) + '%');
+                                
+                                const afterTableCount = (afterSet.match(/<table/g) || []).length;
+                                const afterTrCount = (afterSet.match(/<tr/g) || []).length;
+                                const afterTdCount = (afterSet.match(/<td/g) || []).length;
+                                console.log('After setValue tags - table:', afterTableCount, 'tr:', afterTrCount, 'td:', afterTdCount);
+                                
+                                if (afterSet.length < result.length * 0.95) {
+                                    alert('CodeMirror data loss detected! Reverting...');
+                                    this.editor.setValue(currentValue);
+                                    return;
+                                }
+                                
+                                // Force refresh viewport
+                                this.editor.refresh();
+                                
+                                // Scroll กลับไปตำแหน่งเดิม
                                 this.editor.setCursor(cursor);
+                                this.editor.scrollIntoView(cursor, 100);
                             } else {
                                 console.error('Beautify returned empty result');
                             }
@@ -284,7 +345,8 @@
                             const beautified = html_beautify(this.currentHtml, {
                                 indent_size: 2,
                                 wrap_line_length: 0,
-                                preserve_newlines: true
+                                preserve_newlines: true,
+                                max_preserve_newlines: 2
                             });
                             
                             this.editor = CodeMirror(this.$refs.editorContainer, {
@@ -452,24 +514,84 @@
                     
                     console.log('Generated CSS:', this.generatedCss);
                     
-                    this.currentHtml = doc.body.innerHTML;
+                    // ไม่ใช้ innerHTML - แก้ style attribute ตรงๆ ใน string
+                    let html = this.currentHtml;
+                    
+                    // สร้าง Map เก็บ style attribute เก่า -> ใหม่
+                    const replacements = [];
+                    
+                    allElements.forEach(el => {
+                        const oldStyle = el.getAttribute('style');
+                        const newStyle = el.getAttribute('style');
+                        
+                        if (oldStyle !== newStyle) {
+                            replacements.push({
+                                old: `style="${oldStyle}"`,
+                                new: `style="${newStyle}"`
+                            });
+                        }
+                    });
+                    
+                    // Replace style attributes ใน string HTML
+                    replacements.forEach(r => {
+                        html = html.replace(r.old, r.new);
+                    });
+                    
+                    this.currentHtml = html;
                     this.sheets[this.currentSheet].html = this.currentHtml;
                     
                     if (this.editor) {
-                        // Save cursor position
                         const cursor = this.editor.getCursor();
+                        const originalLength = this.currentHtml.length;
+                        
+                        console.log('=== EXTRACT CSS - BEFORE BEAUTIFY ===');
+                        console.log('Length:', originalLength);
+                        const tableCount = (this.currentHtml.match(/<table/g) || []).length;
+                        const trCount = (this.currentHtml.match(/<tr/g) || []).length;
+                        const tdCount = (this.currentHtml.match(/<td/g) || []).length;
+                        console.log('Tags - table:', tableCount, 'tr:', trCount, 'td:', tdCount);
                         
                         const beautified = html_beautify(this.currentHtml, {
                             indent_size: 2,
-                            wrap_line_length: 0
+                            wrap_line_length: 0,
+                            preserve_newlines: true,
+                            max_preserve_newlines: 2
                         });
                         
-                        // Clear and set value
-                        this.editor.setValue('');
+                        console.log('=== EXTRACT CSS - AFTER BEAUTIFY ===');
+                        console.log('Length:', beautified.length);
+                        const tableCountAfter = (beautified.match(/<table/g) || []).length;
+                        const trCountAfter = (beautified.match(/<tr/g) || []).length;
+                        const tdCountAfter = (beautified.match(/<td/g) || []).length;
+                        console.log('Tags - table:', tableCountAfter, 'tr:', trCountAfter, 'td:', tdCountAfter);
+                        
+                        // เช็คว่า tags หาย
+                        if (tableCountAfter < tableCount || trCountAfter < trCount || tdCountAfter < tdCount) {
+                            alert(`Extract CSS cancelled: Tags lost!\nBefore: table=${tableCount}, tr=${trCount}, td=${tdCount}\nAfter: table=${tableCountAfter}, tr=${trCountAfter}, td=${tdCountAfter}`);
+                            return;
+                        }
+                        
+                        console.log('=== EXTRACT CSS - SETTING TO EDITOR ===');
+                        
+                        // ไม่ clear - set ตรงๆ
                         this.editor.setValue(beautified);
                         
-                        // Restore cursor
+                        // เช็คหลัง set
+                        const afterSet = this.editor.getValue();
+                        console.log('After setValue length:', afterSet.length);
+                        console.log('Data loss:', ((beautified.length - afterSet.length) / beautified.length * 100).toFixed(2) + '%');
+                        
+                        if (afterSet.length < beautified.length * 0.95) {
+                            alert('CodeMirror data loss detected! Reverting...');
+                            this.currentHtml = this.sheets[this.currentSheet].html; // revert
+                            this.editor.setValue(this.currentHtml);
+                            return;
+                        }
+                        
+                        // Force refresh
+                        this.editor.refresh();
                         this.editor.setCursor(cursor);
+                        this.editor.scrollIntoView(cursor, 100);
                     }
                     
                     // Update preview with CSS + HTML
