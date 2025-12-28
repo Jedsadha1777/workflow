@@ -30,73 +30,17 @@ app.post('/api/generate-pdf', async (req, res) => {
 
         const page = await browser.newPage();
 
-        await page.setViewport({
-            width: options.orientation === 'landscape' ? 1123 : 794,
-            height: options.orientation === 'landscape' ? 794 : 1123,
-            deviceScaleFactor: 1
-        });
-
+        // ใช้ CSS เป็นตัวกำหนดขนาด - ไม่ต้องบอก viewport
         await page.setContent(html, {
             waitUntil: 'networkidle0',
             timeout: 30000
         });
 
-        // วัด intrinsic width จาก browser layout จริง
-        await page.evaluate((orientation) => {
-            const pageWidth = orientation === 'landscape' ? 1085 : 756;
-            
-            const wrappers = document.querySelectorAll('.sheet-scale');
-            wrappers.forEach(wrapper => {
-                const table = wrapper.querySelector('table');
-                if (!table) return;
-                
-                // 1. วัด intrinsic width จาก colgroup
-                const cols = table.querySelectorAll('colgroup col');
-                let intrinsicWidth = 0;
-                cols.forEach(col => {
-                    const w = parseFloat(col.style.width || col.getAttribute('width') || 0);
-                    intrinsicWidth += w;
-                });
-                
-                if (intrinsicWidth === 0) {
-                    intrinsicWidth = table.offsetWidth;
-                }
-                
-                // 2. Lock table width = intrinsic width
-                table.style.width = intrinsicWidth + 'px';
-                table.style.minWidth = intrinsicWidth + 'px';
-                table.style.tableLayout = 'fixed';
-                
-                // 3. Lock wrapper width = intrinsic width
-                wrapper.style.width = intrinsicWidth + 'px';
-                
-                // 4. Scale ถ้าเกิน
-                if (intrinsicWidth > pageWidth) {
-                    const scale = pageWidth / intrinsicWidth;
-                    
-                    wrapper.style.transformOrigin = 'top left';
-                    wrapper.style.transform = `scale(${scale})`;
-                    
-                    // ปรับกรอบหลัง scale
-                    wrapper.style.width = (intrinsicWidth * scale) + 'px';
-                    wrapper.style.height = (table.offsetHeight * scale) + 'px';
-                }
-                
-                // 5. Center ด้วย flexbox (parent .sheet-wrapper)
-            });
-        }, options.orientation);
-
+        // บอก Puppeteer ให้ใช้ตาม CSS (@page) ไม่ต้องยุ่ง
         const pdfBuffer = await page.pdf({
-            format: options.format || 'A4',
-            landscape: options.orientation === 'landscape',
-            margin: {
-                top: '5mm',
-                right: '5mm',
-                bottom: '5mm',
-                left: '5mm'
-            },
+            preferCSSPageSize: true, // สำคัญ: ใช้ @page จาก CSS
             printBackground: true,
-            preferCSSPageSize: false
+            margin: { top: 0, right: 0, bottom: 0, left: 0 } // ใช้ margin จาก @page แทน
         });
 
         await page.close();

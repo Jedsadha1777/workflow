@@ -44,7 +44,7 @@ class DocumentResource extends Resource
 
                 Forms\Components\Placeholder::make('template_form')
                     ->label('Template Form')
-               
+
                     ->columnSpanFull()
                     ->content(function ($get, $record) {
                         $templateId = $record ? $record->template_document_id : $get('template_document_id');
@@ -68,7 +68,7 @@ class DocumentResource extends Resource
                             $existingFormData = is_array($record->form_data) ? $record->form_data : json_decode($record->form_data, true);
                         }
 
-                         $calculationScripts = $template->calculation_scripts ?? '';
+                        $calculationScripts = $template->calculation_scripts ?? '';
 
                         $html = '<style>
                             .zoom-controls {
@@ -109,7 +109,24 @@ class DocumentResource extends Resource
                             [x-cloak] { display: none !important; }
                         </style>';
 
-                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\'' . $formId . '\', ' . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES) . ', ' . htmlspecialchars(json_encode($calculationScripts), ENT_QUOTES) . ')" x-cloak>';
+                        // Print JavaScript function 
+                        if (!empty($calculationScripts)) {
+                            $html .= '<script id="calc-script-' . $formId . '">
+window.runCalculations_' . $formId . ' = function() {
+    try {
+        ' . $calculationScripts . '
+    } catch (e) {
+        console.error("Calculation error:", e);
+    }
+};
+</script>';
+                        }
+
+                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\''
+                            . $formId . '\', '
+                            . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES)
+                            . ')" x-cloak>';
+
                         $sheetIndex = 0;
                         foreach ($content['sheets'] as $sheet) {
                             $sheetId = $formId . '_sheet_' . $sheetIndex;

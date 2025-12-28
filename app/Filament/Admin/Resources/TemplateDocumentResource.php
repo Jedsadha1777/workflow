@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Filament\App\Resources;
+namespace App\Filament\Admin\Resources;
 
-use App\Filament\App\Resources\TemplateDocumentResource\Pages;
+use App\Filament\Admin\Resources\TemplateDocumentResource\Pages;
 use App\Models\TemplateDocument;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -39,21 +39,24 @@ class TemplateDocumentResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make()->schema([
+            Forms\Components\Section::make('Basic Information')->schema([
                 Forms\Components\TextInput::make('name')->required()->maxLength(255),
                 Forms\Components\Toggle::make('is_active')->default(true),
             ])->columns(2),
 
-            Forms\Components\Section::make('Content')->schema([
+            Forms\Components\Section::make('Upload Excel File')->schema([
                 Forms\Components\FileUpload::make('excel_file')
-                    ->label('Upload Excel File')
+                    ->label('Excel File')
                     ->acceptedFileTypes(['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
                     ->disk('public')
                     ->directory('templates')
-                    ->downloadable(),
+                    ->downloadable()
+                    ->required(),
+            ])->visible(fn($record) => $record === null),
 
+            Forms\Components\Section::make('Template Editor')->schema([
                 Forms\Components\Placeholder::make('luckysheet_editor')
-                    ->label('Spreadsheet Editor')
+                    ->label('')
                     ->content(function ($record) {
                         if (!$record || !$record->excel_file) {
                             return new HtmlString('<div><p class="text-gray-500">Save the form with an Excel file first</p></div>');
@@ -87,14 +90,9 @@ class TemplateDocumentResource extends Resource
   display: table !important;
   width: 100% !important;
 }
-
-
-
 </style>
 <div class="no-tailwind">
-
 <div id="{$id}" style="margin:10px 0;width:100%;height:600px;border:1px solid #ccc;position:relative;overflow:hidden;"></div>
-
 </div>
 <div class="flex gap-2 mt-4">
 <button type="button" id="fullscreen_btn_{$id}" class="inline-flex items-center px-4 py-2 rounded-lg text-white" style="background-color:#4B5563;">Fullscreen</button>
@@ -106,7 +104,6 @@ class TemplateDocumentResource extends Resource
 <h3 class="text-lg font-semibold">HTML Preview</h3>
 <div id="preview_sheets_{$id}"></div>
 </div>
-
 
 <script>
 (function() {
@@ -176,139 +173,7 @@ HTML
                     ->label('Template Content (JSON)')
                     ->dehydrated(true)
                     ->default(''),
-
-
-                Forms\Components\Textarea::make('calculation_scripts')
-                    ->label('Calculation Scripts (JavaScript)')
-                    ->rows(10)
-                    ->placeholder('Write JavaScript to calculate values. Example: setValue("Sheet1:C1", getValue("Sheet1:A1") + getValue("Sheet1:B1"))')
-                    ->columnSpanFull()
-                    ->nullable(),
-
-                Forms\Components\Placeholder::make('สูตรที่ใช้งานได้ ')
-                    ->content(fn() => new \Illuminate\Support\HtmlString(
-                        '<strong>1. การคำนวณพื้นฐาน</strong><br/>
-// บวก ลบ คูณ หาร<br/>
-setValue("Sheet1:D1", getValue("Sheet1:A1") + getValue("Sheet1:B1"));<br/>
-setValue("Sheet1:E1", getValue("Sheet1:C1") * 1.07); // VAT 7%<br/>
-<br/>
-// ยกกำลัง (right-associative)<br/>
-setValue("Sheet1:B1", 2 ** 3 ** 2); // = 512<br/>
-setValue("Sheet1:C1", (2 ** 3) ** 2); // = 64<br/>
-<br/>
-<strong>2. Unary operators</strong><br/>
-const price = parseFloat(getValue("Sheet1:A1")) || 0;<br/>
-const discount = -price * 0.1; // เครื่องหมายลบ<br/>
-setValue("Sheet1:B1", -discount); // บวกกลับ<br/>
-<br/>
-// หลายชั้น<br/>
-const negative = --5; // = 5 (double negative)<br/>
-<br/>
-<strong>3. Comparison operators</strong><br/>
-// เปรียบเทียบตัวเลข<br/>
-const age = parseFloat(getValue("Sheet1:A1"));<br/>
-const isAdult = age >= 18; // true/false<br/>
-<br/>
-const score = parseFloat(getValue("Sheet1:B1"));<br/>
-const passed = score >= 60; // true/false<br/>
-<br/>
-// operators: > < >= <= == !=<br/>
-const isEqual = getValue("Sheet1:A1") == getValue("Sheet1:B1");<br/>
-const isGreater = getValue("Sheet1:C1") > 100;<br/>
-<br/>
-<strong>4. Ternary operator (condition ? true : false)</strong><br/>
-// เช็คอายุ<br/>
-const age = parseFloat(getValue("Sheet1:A1"));<br/>
-const status = age >= 18 ? "adult" : "minor";<br/>
-setValue("Sheet1:B1", status);<br/>
-<br/>
-// คำนวณส่วนลด<br/>
-const total = parseFloat(getValue("Sheet1:Total"));<br/>
-const discount = total > 1000 ? total * 0.1 : 0;<br/>
-setValue("Sheet1:Discount", discount);<br/>
-<br/>
-// nested ternary<br/>
-const score = parseFloat(getValue("Sheet1:Score"));<br/>
-const grade = score >= 80 ? "A" : score >= 60 ? "B" : "C";<br/>
-setValue("Sheet1:Grade", grade);<br/>
-<br/>
-// ใช้กับ comparison<br/>
-const qty = parseFloat(getValue("Sheet1:Qty"));<br/>
-const price = qty > 10 ? 90 : qty > 5 ? 95 : 100;<br/>
-setValue("Sheet1:UnitPrice", price);<br/>
-<br/>
-<strong>5. Operator Precedence</strong><br/>
-setValue("Sheet1:A1", 1 + 2 * 3); // = 7<br/>
-setValue("Sheet1:A2", 10 - 2 * 3); // = 4<br/>
-setValue("Sheet1:A3", 2 ** 3 * 4); // = 32<br/>
-setValue("Sheet1:A4", (1 + 2) * 3); // = 9<br/>
-<br/>
-// ternary มี precedence ต่ำสุด<br/>
-const result = 5 > 3 ? 10 + 20 : 5 * 2; // = 30<br/>
-<br/>
-<strong>6. Short-circuit สำหรับ ||</strong><br/>
-// ถ้า A1 มีค่า → ไม่เรียก getValue()<br/>
-const value = parseFloat(getValue("Sheet1:A1")) || parseFloat(getValue("Sheet1:B1")) || 0;<br/>
-<br/>
-// ใช้ default value<br/>
-const qty = parseFloat(getValue("Sheet1:Qty")) || 1;<br/>
-<br/>
-<strong>7. ใช้ตัวแปร</strong><br/>
-const price = parseFloat(getValue("Sheet1:A1")) || 0;<br/>
-const qty = parseFloat(getValue("Sheet1:B1")) || 0;<br/>
-const discount = parseFloat(getValue("Sheet1:C1")) || 0;<br/>
-<br/>
-const subtotal = price * qty;<br/>
-const afterDiscount = subtotal - discount;<br/>
-const vat = afterDiscount * 0.07;<br/>
-const total = afterDiscount + vat;<br/>
-<br/>
-setValue("Sheet1:D1", subtotal);<br/>
-setValue("Sheet1:E1", afterDiscount);<br/>
-setValue("Sheet1:F1", vat);<br/>
-setValue("Sheet1:G1", total);<br/>
-<br/>
-<strong>8. ตัวอย่างการใช้งานร่วมกัน</strong><br/>
-// เช็คและคำนวณส่วนลด<br/>
-const total = parseFloat(getValue("Sheet1:Total")) || 0;<br/>
-const isMember = getValue("Sheet1:IsMember") == "Yes";<br/>
-const discount = isMember ? (total > 1000 ? 0.15 : 0.10) : 0;<br/>
-const final = total * (1 - discount);<br/>
-setValue("Sheet1:FinalPrice", final);<br/>
-<br/>
-// คำนวณเกรดตามคะแนน<br/>
-const score = parseFloat(getValue("Sheet1:Score")) || 0;<br/>
-const grade = score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F";<br/>
-const status = score >= 60 ? "ผ่าน" : "ไม่ผ่าน";<br/>
-setValue("Sheet1:Grade", grade);<br/>
-setValue("Sheet1:Status", status);<br/>
-<br/>
-<strong>9. Functions ที่รองรับ</strong><br/>
-parseFloat(value)   // แปลงเป็นตัวเลข<br/>
-getValue("Sheet:Cell")  // ดึงค่าจาก cell<br/>
-setValue("Sheet:Cell", value)  // เขียนค่าลง cell<br/>
-<br/>
-<strong>10. Operator Precedence (ต่ำไปสูง)</strong><br/>
-1. Ternary: ? :<br/>
-2. Logical OR: ||<br/>
-3. Comparison: > < >= <= == !=<br/>
-4. Additive: + -<br/>
-5. Multiplicative: * /<br/>
-6. Exponentiation: **<br/>
-7. Unary: + -<br/>
-8. Primary: numbers, strings, variables, functions<br/>
-<br/>
-❌ไม่รองรับ:<br/>
-if/else, loops, arrays, objects<br/>
-Math functions (Math.floor, Math.ceil, etc.)<br/>
-String operations (split, join, substring, etc.)<br/>
-Logical AND (&&), NOT (!)<br/>
-
-'))
-
-
-
-            ]),
+            ])->visible(fn($record) => $record !== null),
         ]);
     }
 
@@ -332,6 +197,8 @@ Logical AND (&&), NOT (!)<br/>
             'index' => Pages\ListTemplateDocuments::route('/'),
             'create' => Pages\CreateTemplateDocument::route('/create'),
             'edit' => Pages\EditTemplateDocument::route('/{record}/edit'),
+            'edit-pdf-layout' => Pages\EditPdfLayout::route('/{record}/edit-pdf-layout'),
+            'settings' => Pages\Settings::route('/{record}/settings'),
         ];
     }
 }

@@ -5,44 +5,38 @@
     <style>
         @page {
             size: A4 {{ $orientation ?? 'portrait' }};
-            margin: 5mm;
+            margin: 0;
         }
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+        
+        @media print {
+            html, body {
+                width: {{ $orientation === 'landscape' ? '297mm' : '210mm' }};
+                height: {{ $orientation === 'landscape' ? '210mm' : '297mm' }};
+            }
+        }
+        
         body {
             font-family: Arial, sans-serif;
+            padding: 20px;
         }
-        .page {
-            page-break-before: always;
-        }
-        .page:first-child {
-            page-break-before: avoid;
-        }
-        .sheet-wrapper {
-            width: auto;
-            display: flex;
-            justify-content: center;
-        }
-        .sheet-scale {
-            display: inline-block;
-        }
+        
         table {
-            width: 100%;
+            table-layout: fixed;
         }
     </style>
 </head>
 <body>
     @foreach($sheets as $sheet)
-        <div class="page">
-            <div class="sheet-wrapper">
-                <div class="sheet-scale">
-                    {!! $sheet['html'] !!}
-                </div>
-            </div>
-        </div>
+        @if($loop->index > 0)
+        <div style="page-break-before: always;"></div>
+        @endif
+        {!! $sheet['html'] !!}
     @endforeach
 </body>
 </html>

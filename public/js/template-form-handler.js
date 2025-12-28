@@ -1,8 +1,7 @@
-window.templateFormHandler = function(formId, existingData, calculationScripts) {
+window.templateFormHandler = function(formId, existingData) { 
     return {
         formId: formId,
         existingData: existingData,
-        calculationScripts: calculationScripts,
         initialized: false,
         formData: {},
         
@@ -14,7 +13,6 @@ window.templateFormHandler = function(formId, existingData, calculationScripts) 
             
             console.log('Alpine init for:', this.formId);
             console.log('Existing data:', this.existingData);
-            console.log('Calculation scripts:', this.calculationScripts);
             
             this.$nextTick(() => {
                 this.renderFields();
@@ -125,13 +123,15 @@ window.templateFormHandler = function(formId, existingData, calculationScripts) 
         },
         
         runCalculations() {
-            if (!this.calculationScripts) return;
+            const funcName = 'runCalculations_' + this.formId;
             
-            try {
-                eval(this.calculationScripts);
-                console.log('✓ Calculations executed');
-            } catch (e) {
-                console.error('Calculation error:', e);
+            if (typeof window[funcName] === 'function') {
+                try {
+                    window[funcName](); 
+                    console.log('✓ Calculations executed via', funcName);
+                } catch (e) {
+                    console.error('Calculation error:', e);
+                }
             }
         },
         

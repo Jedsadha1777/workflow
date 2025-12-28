@@ -10,6 +10,8 @@ class TemplateDocument extends Model
     protected $fillable = [
         'name',
         'excel_file',
+        'pdf_layout_html',
+        'pdf_orientation',
         'content',
         'calculation_scripts',
         'is_active',

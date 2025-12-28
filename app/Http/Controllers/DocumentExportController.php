@@ -64,7 +64,6 @@ class DocumentExportController extends Controller
                     } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
                         $dateHtml = '<div style="padding:4px;"><strong>' . htmlspecialchars($value['date']) . '</strong></div>';
                         
-                        
                         $sheetHtml = preg_replace(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
                             '<td$1>' . $dateHtml . '</td>',
@@ -100,6 +99,7 @@ class DocumentExportController extends Controller
                 'options' => [
                     'format' => 'A4',
                     'orientation' => $orientation,
+                    'zoom' => 0.4,
                     'printBackground' => true,
                 ]
             ]);
@@ -135,7 +135,7 @@ class DocumentExportController extends Controller
         }
 
         $excelPath = storage_path('app/public/' . $template->excel_file);
-        
+
         if (!file_exists($excelPath)) {
             return response()->json(['error' => 'Excel file does not exist'], 404);
         }
@@ -146,7 +146,7 @@ class DocumentExportController extends Controller
         foreach ($formData as $sheetName => $cells) {
             try {
                 $worksheet = $spreadsheet->getSheetByName($sheetName);
-                
+
                 if (!$worksheet) {
                     continue;
                 }
@@ -163,10 +163,10 @@ class DocumentExportController extends Controller
 
                         if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                             $approver = \App\Models\User::find($value['approver_id']);
-                            
+
                             if ($approver && $approver->signature_image) {
                                 $signaturePath = storage_path('app/public/' . $approver->signature_image);
-                                
+
                                 \Log::info("Excel Signature Debug", [
                                     'approver' => $approver->name,
                                     'signature_image' => $approver->signature_image,
@@ -174,7 +174,7 @@ class DocumentExportController extends Controller
                                     'file_exists' => file_exists($signaturePath),
                                     'cell' => $cellCoord
                                 ]);
-                                
+
                                 if (file_exists($signaturePath)) {
                                     try {
                                         $drawing = new Drawing();
@@ -186,10 +186,10 @@ class DocumentExportController extends Controller
                                         $drawing->setOffsetX(5);
                                         $drawing->setOffsetY(5);
                                         $drawing->setWorksheet($worksheet);
-                                        
+
                                         $rowNumber = $worksheet->getCell($cellCoord)->getRow();
                                         $worksheet->getRowDimension($rowNumber)->setRowHeight(60);
-                                        
+
                                         \Log::info("Excel Signature Success", [
                                             'cell' => $cellCoord,
                                             'approver' => $approver->name
@@ -250,13 +250,22 @@ class DocumentExportController extends Controller
     private static function detectOrientation(array $sheets): string
     {
         $maxWidth = 0;
+        $maxHeight = 0;
         
         foreach ($sheets as $sheet) {
-            preg_match_all('/width:\s*(\d+)px/', $sheet['html'], $matches);
-            $width = array_sum(array_map('intval', $matches[1]));
+            preg_match_all('/width:\s*(\d+)px/', $sheet['html'], $widthMatches);
+            $width = array_sum(array_map('intval', $widthMatches[1]));
+            
+            preg_match_all('/height:\s*(\d+)px/', $sheet['html'], $heightMatches);
+            $height = array_sum(array_map('intval', $heightMatches[1]));
+            
             $maxWidth = max($maxWidth, $width);
+            $maxHeight = max($maxHeight, $height);
         }
         
-        return $maxWidth > 800 ? 'landscape' : 'portrait';
+        // A4 Portrait: 794px x 1123px (content: 756px x 1048px)
+        // A4 Landscape: 1123px x 794px (content: 1048px x 756px)
+        // ใช้ width > 900px เป็นตัวตัดสิน landscape
+        return $maxWidth > 900 ? 'landscape' : 'portrait';
     }
 }

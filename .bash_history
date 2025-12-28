@@ -180,3 +180,13 @@ php artisan cache:clear
 php artisan view:clear
 php artisan config:clear
 exit
+php artisan optimize
+php artisan optimize:clear
+php artisan optimize:clear
+exit
+php artisan migration:make YYYY_MM_DD_HHMMSS_add_pdf_layout_to_template_documents
+php artisan migrate:make YYYY_MM_DD_HHMMSS_add_pdf_layout_to_template_documents
+php artisan migration:make YYYY_MM_DD_HHMMSS_add_pdf_layout_to_template_documents
+php artisan make:migration add_pdf_layout_to_template_documents
+php artisan migrate
+exit
