@@ -19,51 +19,21 @@
             if (table) {
                 const scale = window.sheetZoomLevels[sheetId];
                 
-                // 1. Reset เพื่อวัดขนาดจริงก่อน scale
-                wrapper.style.transform = 'scale(1)';
-                wrapper.style.width = 'auto';
-                wrapper.style.height = 'auto';
-                wrapper.style.marginRight = '0';
-                wrapper.style.marginBottom = '0';
-                
-                void wrapper.offsetWidth;
-                
-                // 2. คำนวณขนาดดั้งเดิม (Unscaled)
-                const cols = table.querySelectorAll('colgroup col');
-                let totalWidth = 0;
-                cols.forEach(col => {
-                    const w = parseFloat(col.style.width || col.getAttribute('width') || 0);
-                    totalWidth += w;
-                });
-                
-                if (totalWidth === 0) {
-                    totalWidth = table.offsetWidth;
-                }
-                const totalHeight = table.offsetHeight;
-
-                // 3. จัดการเรื่องขนาดกรอบ (Bounding Box)
+                // ไม่บีบ content - ให้ auto เต็มที่
                 wrapper.style.transformOrigin = 'top left';
                 wrapper.style.transform = 'scale(' + scale + ')';
-
-                if (scale < 1) {
-                    // กรณี Scale ต่ำกว่า 1: ให้กรอบหดตามเนื้อหา
-                    wrapper.style.width = (totalWidth * scale) + 'px';
-                    wrapper.style.height = (totalHeight * scale) + 'px';
-                } else {
-                    // กรณี Scale >= 1: ให้กรอบล็อคไว้ที่ขนาดจริง 100% ไม่ให้คำนวณระยะเกิน
-                    wrapper.style.width = totalWidth + 'px';
-                    wrapper.style.height = totalHeight + 'px';
-                }
-
-                // ป้องกัน table บีบตัว
-                table.style.width = totalWidth + 'px';
-                table.style.minWidth = totalWidth + 'px';
+                wrapper.style.width = 'fit-content';
+                wrapper.style.height = 'fit-content';
+                
+                // ให้ table ขนาดเต็มที่ตามที่ควรจะเป็น
+                table.style.width = '';
+                table.style.minWidth = '';
                 
             } else {
                 wrapper.style.transform = 'scale(' + window.sheetZoomLevels[sheetId] + ')';
                 wrapper.style.transformOrigin = 'top left';
-                wrapper.style.width = 'auto';
-                wrapper.style.height = 'auto';
+                wrapper.style.width = 'fit-content';
+                wrapper.style.height = 'fit-content';
             }
             
             if (zoomLevel) {
@@ -146,8 +116,5 @@
     
     document.addEventListener('livewire:navigated', initZoomControls);
     document.addEventListener('livewire:load', initZoomControls);
-
-
     document.addEventListener('filament:navigated', initZoomControls);
-    document.addEventListener('livewire:navigated', initZoomControls);
 })();

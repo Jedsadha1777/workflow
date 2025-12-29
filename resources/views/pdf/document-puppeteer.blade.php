@@ -19,11 +19,25 @@
             box-sizing: border-box;
         }
         
+        @if($orientation === 'fit')
+        html, body {
+            width: fit-content !important;
+            height: fit-content !important;
+            overflow: visible !important;
+        }
+        
+        /* ซ่อน CSS text ที่หลุดมา */
+        body > :not(table):not(div) {
+            display: none !important;
+        }
+        @endif
+        
         @media print {
             html, body {
                 @if($orientation === 'fit')
                 width: auto;
                 height: auto;
+                overflow: visible !important;
                 @elseif($orientation === 'landscape')
                 width: 297mm;
                 height: 210mm;
@@ -35,10 +49,24 @@
             
             @if($orientation === 'fit')
             /* ปิด page break ทั้งหมดใน fit mode */
-            * {
+            *, *::before, *::after {
                 page-break-before: avoid !important;
                 page-break-after: avoid !important;
                 page-break-inside: avoid !important;
+                break-before: avoid !important;
+                break-after: avoid !important;
+                break-inside: avoid !important;
+            }
+            
+            html, body {
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+            }
+            
+            /* ซ่อน CSS text ตอน print */
+            body > :not(table):not(div) {
+                display: none !important;
             }
             @endif
         }
@@ -46,21 +74,21 @@
         body {
             font-family: Arial, sans-serif;
             @if($orientation === 'fit')
-            padding: 0;
-            position: relative;
+            padding: 10px;
+            margin: 0;
             @else
             padding: 20px;
             @endif
         }
         
-        @if($orientation === 'fit')
-        body > * {
+        body > table {
             margin: 0 auto;
         }
-        @endif
         
         table {
+            @if($orientation !== 'fit')
             table-layout: fixed;
+            @endif
         }
     </style>
 </head>

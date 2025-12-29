@@ -76,7 +76,7 @@
                         </button>
                         
                         <button type="button"
-                           @click="window.open(`/template-documents/{{ $this->record->id }}/preview-pdf?orientation=${localOrientation}`, '_blank')"
+                           @click="console.log('localOrientation:', localOrientation); window.open(`/template-documents/{{ $this->record->id }}/preview-pdf?orientation=${localOrientation}`, '_blank')"
                            class="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-500">
                             Preview PDF
                         </button>

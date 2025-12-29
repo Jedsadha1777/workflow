@@ -190,3 +190,7 @@ php artisan migration:make YYYY_MM_DD_HHMMSS_add_pdf_layout_to_template_document
 php artisan make:migration add_pdf_layout_to_template_documents
 php artisan migrate
 exit
+php artisan optimize
+php artisan optimize:clear
+clear
+exit

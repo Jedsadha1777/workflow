@@ -16,8 +16,15 @@ class TemplateDocumentExportController extends Controller
 
         $sheets = $content['sheets'] ?? [];
         
+        // รับ orientation จาก query parameter ถ้ามี ไม่งั้นใช้จาก database
         $orientation = request('orientation') ?? $templateDocument->pdf_orientation ?? 'portrait';
-
+        
+        \Log::info('Preview PDF Orientation', [
+            'query_param' => request('orientation'),
+            'db_value' => $templateDocument->pdf_orientation,
+            'final_orientation' => $orientation,
+            'all_query' => request()->all()
+        ]);
 
         $html = view('pdf.document-puppeteer', [
             'document' => null,
@@ -28,13 +35,19 @@ class TemplateDocumentExportController extends Controller
         $pdfServiceUrl = config('services.pdf.url', 'http://localhost:3000');
         
         try {
+            $options = [
+                'orientation' => $orientation,
+                'printBackground' => true,
+            ];
+            
+            // ถ้าไม่ใช่ fit mode ถึงใส่ format
+            if ($orientation !== 'fit') {
+                $options['format'] = 'A4';
+            }
+            
             $response = Http::timeout(60)->post($pdfServiceUrl . '/api/generate-pdf', [
                 'html' => $html,
-                'options' => [
-                    'format' => 'A4',
-                    'orientation' => $orientation,
-                    'printBackground' => true,
-                ]
+                'options' => $options
             ]);
 
             if ($response->successful()) {

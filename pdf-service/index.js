@@ -30,11 +30,19 @@ app.post('/api/generate-pdf', async (req, res) => {
 
         const page = await browser.newPage();
 
-        await page.setViewport({
-            width: 1920,
-            height: 1080,
-            deviceScaleFactor: 1
-        });
+        if (options.orientation === 'fit') {
+            await page.setViewport({
+                width: 800,
+                height: 600,
+                deviceScaleFactor: 1
+            });
+        } else {
+            await page.setViewport({
+                width: 1920,
+                height: 1080,
+                deviceScaleFactor: 1
+            });
+        }
 
         await page.setContent(html, {
             waitUntil: 'networkidle0',
@@ -51,9 +59,7 @@ app.post('/api/generate-pdf', async (req, res) => {
             printBackground: true
         };
 
-        // ถ้าเป็น fit mode ให้ใช้ CSS กำหนดขนาด
         if (options.orientation === 'fit') {
-            // ไม่ใส่ margin เพื่อให้เต็มจอ
             pdfOptions.margin = {
                 top: 0,
                 right: 0,
@@ -61,34 +67,51 @@ app.post('/api/generate-pdf', async (req, res) => {
                 left: 0
             };
             
-            // ให้ Puppeteer detect ขนาดจาก content
+            console.log('=== STARTING FIT MODE DETECTION ===');
+            
             const dimensions = await page.evaluate(() => {
-                // หาขนาดที่ใหญ่ที่สุดจากทุก property
                 const body = document.body;
-                const html = document.documentElement;
+                const table = document.querySelector('table');
+                const firstChild = body.firstElementChild;
                 
-                const width = Math.max(
-                    body.scrollWidth,
-                    body.offsetWidth,
-                    html.clientWidth,
-                    html.scrollWidth,
-                    html.offsetWidth
-                );
+                let width, height;
                 
-                const height = Math.max(
-                    body.scrollHeight,
-                    body.offsetHeight,
-                    html.clientHeight,
-                    html.scrollHeight,
-                    html.offsetHeight
-                );
-                
-                return { width, height };
+                if (table) {
+                    const rect = table.getBoundingClientRect();
+                    width = Math.ceil(rect.width);
+                    return { 
+                        width, 
+                        height: body.scrollHeight,
+                        source: 'table',
+                        rectWidth: rect.width,
+                        offsetWidth: table.offsetWidth
+                    };
+                } else if (firstChild) {
+                    const rect = firstChild.getBoundingClientRect();
+                    width = Math.ceil(rect.width);
+                    return { 
+                        width, 
+                        height: body.scrollHeight,
+                        source: 'firstChild',
+                        tag: firstChild.tagName
+                    };
+                } else {
+                    return { 
+                        width: body.scrollWidth, 
+                        height: body.scrollHeight,
+                        source: 'body'
+                    };
+                }
             });
             
-            console.log('Fit mode dimensions:', dimensions);
+            console.log('=== FIT MODE RESULT ===');
+            console.log('Source:', dimensions.source);
+            console.log('Width:', dimensions.width);
+            console.log('Height:', dimensions.height);
+            if (dimensions.rectWidth) console.log('rectWidth:', dimensions.rectWidth);
+            if (dimensions.offsetWidth) console.log('offsetWidth:', dimensions.offsetWidth);
+            console.log('===========================');
             
-            // กำหนดขนาดกระดาษตาม content พอดี
             pdfOptions.width = `${dimensions.width}px`;
             pdfOptions.height = `${dimensions.height}px`;
             pdfOptions.preferCSSPageSize = false;
