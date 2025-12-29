@@ -49,6 +49,7 @@
                                 class="rounded border text-sm">
                             <option value="portrait">Portrait (794×1123)</option>
                             <option value="landscape">Landscape (1123×794)</option>
+                            <option value="fit">Fit to Content (Full Width)</option>
                         </select>
                         
                         <!-- Action Buttons -->
@@ -65,6 +66,8 @@
                             Format HTML
                         </button>
                         
+                        <!-- Search ถูกปิดชั่วคราวเพราะทำให้ CodeMirror error -->
+                        
                         <button type="button"
                                 @click="saveChanges()"
                                 class="inline-flex items-center px-3 py-1.5 text-white text-sm rounded"
@@ -72,11 +75,11 @@
                             Save
                         </button>
                         
-                        <a href="/template-documents/{{ $this->record->id }}/preview-pdf"
-                           target="_blank"
+                        <button type="button"
+                           @click="window.open(`/template-documents/{{ $this->record->id }}/preview-pdf?orientation=${localOrientation}`, '_blank')"
                            class="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-500">
                             Preview PDF
-                        </a>
+                        </button>
                     </div>
                     
                     <button type="button"
@@ -104,6 +107,13 @@
                                       class="w-full text-xs font-mono p-3 border rounded bg-white"
                                       style="min-height: 200px; font-family: monospace; white-space: pre;"
                                       spellcheck="false"></textarea>
+                        </div>
+
+                        <!-- Search Info -->
+                        <div class="p-3 border-b flex items-center gap-2" style="background-color:#fef3c7;">
+                            <span class="text-sm" style="color:#6b7280;">
+                                💡 Press <strong>Ctrl+F</strong> to search in editor
+                            </span>
                         </div>
 
                         <!-- Code Editor - WITH SCROLL -->
@@ -172,6 +182,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+    
+    <!-- Search addon -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/searchcursor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/search.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.11/beautify-html.min.js"></script>
 
     <style>
@@ -196,6 +212,8 @@
                 paperSize: { width: 794, height: 1123 },
                 cssClasses: [],
                 generatedCss: '',
+                searchVisible: false,
+                isSaving: false,
 
                 init() {
                     const contentData = @json($this->record->content);
@@ -224,15 +242,14 @@
                 },
 
                 updatePaperSize() {
-                    // ใช้ mm เหมือน CSS @page
-                    // A4: 210mm × 297mm
-                    // หัก margin 5mm×2 = 200mm × 287mm
-                    // Convert mm to px: 1mm ≈ 3.78px (96 DPI)
-                    if (this.localOrientation === 'landscape') {
+                    if (this.localOrientation === 'fit') {
+                        // Fit to Content - ไม่จำกัดขนาด
+                        this.paperSize = { width: 9999, height: 9999 };
+                    } else if (this.localOrientation === 'landscape') {
                         // 287mm × 200mm
-                        this.paperSize = { width: 1085, height: 756 }; // 287×3.78, 200×3.78
+                        this.paperSize = { width: 1085, height: 756 };
                     } else {
-                        // 200mm × 287mm
+                        // 200mm × 287mm (portrait)
                         this.paperSize = { width: 756, height: 1085 };
                     }
                     this.checkOverflow();
@@ -342,12 +359,31 @@
                             }
                             this.$refs.editorContainer.innerHTML = '';
                             
-                            const beautified = html_beautify(this.currentHtml, {
-                                indent_size: 2,
-                                wrap_line_length: 0,
-                                preserve_newlines: true,
-                                max_preserve_newlines: 2
-                            });
+                            // เช็คว่ามี HTML หรือเปล่า
+                            const htmlToEdit = this.currentHtml || '';
+                            
+                            console.log('=== TOGGLE FULLSCREEN ===');
+                            console.log('htmlToEdit type:', typeof htmlToEdit);
+                            console.log('htmlToEdit length:', htmlToEdit.length);
+                            console.log('htmlToEdit preview:', htmlToEdit.substring(0, 100));
+                            
+                            let beautified = '';
+                            try {
+                                beautified = html_beautify(htmlToEdit, {
+                                    indent_size: 2,
+                                    wrap_line_length: 0,
+                                    preserve_newlines: true,
+                                    max_preserve_newlines: 2
+                                }) || '';
+                                
+                                console.log('beautified type:', typeof beautified);
+                                console.log('beautified length:', beautified.length);
+                            } catch (e) {
+                                console.error('html_beautify error:', e);
+                                beautified = htmlToEdit;
+                            }
+                            
+                            console.log('Creating CodeMirror with value type:', typeof beautified);
                             
                             this.editor = CodeMirror(this.$refs.editorContainer, {
                                 mode: 'htmlmixed',
@@ -361,7 +397,6 @@
                                 this.currentHtml = this.editor.getValue();
                                 this.sheets[this.currentSheet].html = this.currentHtml;
                                 this.updatePreview();
-                                this.saveToHidden();
                             });
                             
                             this.updatePreview();
@@ -514,30 +549,8 @@
                     
                     console.log('Generated CSS:', this.generatedCss);
                     
-                    // ไม่ใช้ innerHTML - แก้ style attribute ตรงๆ ใน string
-                    let html = this.currentHtml;
-                    
-                    // สร้าง Map เก็บ style attribute เก่า -> ใหม่
-                    const replacements = [];
-                    
-                    allElements.forEach(el => {
-                        const oldStyle = el.getAttribute('style');
-                        const newStyle = el.getAttribute('style');
-                        
-                        if (oldStyle !== newStyle) {
-                            replacements.push({
-                                old: `style="${oldStyle}"`,
-                                new: `style="${newStyle}"`
-                            });
-                        }
-                    });
-                    
-                    // Replace style attributes ใน string HTML
-                    replacements.forEach(r => {
-                        html = html.replace(r.old, r.new);
-                    });
-                    
-                    this.currentHtml = html;
+                    // เอา HTML จาก DOM ที่ modify แล้ว (มี class + var)
+                    this.currentHtml = doc.body.innerHTML;
                     this.sheets[this.currentSheet].html = this.currentHtml;
                     
                     if (this.editor) {
@@ -625,6 +638,12 @@
                 },
 
                 applyCssVariables() {
+                    // ถ้า user แก้ CSS manual แล้ว ไม่ต้อง regenerate
+                    if (this.cssManuallyEdited) {
+                        console.log('CSS was manually edited, skipping regeneration');
+                        return;
+                    }
+                    
                     // Generate CSS
                     let cssText = '<style>\n';
                     
@@ -684,6 +703,15 @@
                 updatePreview() {
                     this.previewHtml = (this.generatedCss || '') + this.currentHtml;
                     this.$nextTick(() => this.checkOverflow());
+                    
+                    // Debug: เช็คว่า editor ถูก lock หรือเปล่า
+                    if (this.editor) {
+                        const isReadOnly = this.editor.getOption('readOnly');
+                        if (isReadOnly) {
+                            console.error('CodeMirror is READ-ONLY!');
+                            this.editor.setOption('readOnly', false);
+                        }
+                    }
                 },
 
                 switchSheet(index) {
@@ -719,6 +747,11 @@
                 },
 
                 saveToHidden() {
+                    if (this.isSaving) {
+                        console.log('saveToHidden: skipped (already saving)');
+                        return;
+                    }
+                    
                     const updatedContent = {
                         sheets: this.sheets,
                         orientation: this.localOrientation,
@@ -731,6 +764,8 @@
                 },
                 
                 saveChanges() {
+                    this.isSaving = true;
+                    
                     // อัพเดท currentHtml จาก editor ก่อน
                     if (this.editor) {
                         this.currentHtml = this.editor.getValue();
@@ -760,8 +795,14 @@
                     setTimeout(() => {
                         // เรียก save() method ของ page
                         this.$wire.save();
+                        
+                        // Reset flag หลัง save เสร็จ
+                        setTimeout(() => {
+                            this.isSaving = false;
+                        }, 500);
                     }, 100);
                 },
+
             }
         }
     </script>

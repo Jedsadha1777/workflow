@@ -56,20 +56,34 @@
         
         if (!empty($formData) && isset($formData[$sheetName])) {
             foreach ($formData[$sheetName] as $cell => $value) {
-                
+                // ข้ามถ้าค่ายังเป็น shortcode component
+                if (is_string($value)) {
+                    $trimmedValue = trim($value);
+                    if (preg_match('/^\[(?:signature|input|textarea|date|select|checkbox|radio|number|text)/', $trimmedValue)) {
+                        continue;
+                    }
+                    if (empty($trimmedValue)) {
+                        continue;
+                    }
+                }
 
                 if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
-                    $approver = \App\Models\User::find($value['approver_id']);
-                    
-                    if ($approver && $approver->signature_image) {
-                        $signatureUrl = asset('storage/' . $approver->signature_image);
-                        $signatureHtml = '<div style="text-align:center;padding:8px;">' .
-                            '<img src="' . $signatureUrl . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
-                            '</div>';
+                    // ถ้ายังไม่มี approver_id หรือยังไม่ได้ sign → แสดง placeholder
+                    if (empty($value['approver_id']) || empty($value['signed_at'])) {
+                        $signatureHtml = '<div class="border-2 border-dashed border-gray-300 rounded p-4 text-center text-gray-500">Signature will appear here after approval</div>';
                     } else {
-                        $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                            '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
-                            '</div>';
+                        $approver = \App\Models\User::find($value['approver_id']);
+                        
+                        if ($approver && $approver->signature_image) {
+                            $signatureUrl = asset('storage/' . $approver->signature_image);
+                            $signatureHtml = '<div style="text-align:center;">' .
+                                '<img src="' . $signatureUrl . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
+                                '</div>';
+                        } else {
+                            $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                                '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
+                                '</div>';
+                        }
                     }
                     
                     $sheetHtml = preg_replace(
@@ -78,6 +92,11 @@
                         $sheetHtml
                     );
                 } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
+                    // ข้ามถ้ายังไม่ได้เลือกวันที่
+                    if (empty($value['date'])) {
+                        continue;
+                    }
+                    
                     $dateHtml = '<div style="padding:4px;">' . (new DateTime($value['date']))->format('d/m/Y') . '</div>';
         
                     
@@ -98,6 +117,12 @@
                 }
             }
         }
+        
+        // แทนที่ #VALUE!, #DIV/0!, #REF!, #N/A, #NAME? ด้วยค่าว่าง
+        $sheetHtml = preg_replace('/#VALUE!|#DIV\/0!|#REF!|#N\/A|#NAME\?/i', '', $sheetHtml);
+        
+        // แทนที่ shortcode components ด้วย div เปล่าเพื่อรักษา structure
+        $sheetHtml = preg_replace('/\[(?:signature|input|textarea|date|select|checkbox|radio|number|text)(?:\s+[^\]]+)?\]/i', '<div style="padding:4px;">&nbsp;</div>', $sheetHtml);
     @endphp
     
     <div class="bg-white mb-4" wire:ignore>

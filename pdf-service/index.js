@@ -30,18 +30,81 @@ app.post('/api/generate-pdf', async (req, res) => {
 
         const page = await browser.newPage();
 
-        // ใช้ CSS เป็นตัวกำหนดขนาด - ไม่ต้องบอก viewport
+        await page.setViewport({
+            width: 1920,
+            height: 1080,
+            deviceScaleFactor: 1
+        });
+
         await page.setContent(html, {
             waitUntil: 'networkidle0',
             timeout: 30000
         });
 
-        // บอก Puppeteer ให้ใช้ตาม CSS (@page) ไม่ต้องยุ่ง
-        const pdfBuffer = await page.pdf({
-            preferCSSPageSize: true, // สำคัญ: ใช้ @page จาก CSS
-            printBackground: true,
-            margin: { top: 0, right: 0, bottom: 0, left: 0 } // ใช้ margin จาก @page แทน
-        });
+        if (options.zoom && options.zoom !== 1) {
+            await page.evaluate((zoom) => {
+                document.body.style.zoom = zoom;
+            }, options.zoom);
+        }
+
+        const pdfOptions = {
+            printBackground: true
+        };
+
+        // ถ้าเป็น fit mode ให้ใช้ CSS กำหนดขนาด
+        if (options.orientation === 'fit') {
+            // ไม่ใส่ margin เพื่อให้เต็มจอ
+            pdfOptions.margin = {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0
+            };
+            
+            // ให้ Puppeteer detect ขนาดจาก content
+            const dimensions = await page.evaluate(() => {
+                // หาขนาดที่ใหญ่ที่สุดจากทุก property
+                const body = document.body;
+                const html = document.documentElement;
+                
+                const width = Math.max(
+                    body.scrollWidth,
+                    body.offsetWidth,
+                    html.clientWidth,
+                    html.scrollWidth,
+                    html.offsetWidth
+                );
+                
+                const height = Math.max(
+                    body.scrollHeight,
+                    body.offsetHeight,
+                    html.clientHeight,
+                    html.scrollHeight,
+                    html.offsetHeight
+                );
+                
+                return { width, height };
+            });
+            
+            console.log('Fit mode dimensions:', dimensions);
+            
+            // กำหนดขนาดกระดาษตาม content พอดี
+            pdfOptions.width = `${dimensions.width}px`;
+            pdfOptions.height = `${dimensions.height}px`;
+            pdfOptions.preferCSSPageSize = false;
+        } else {
+            pdfOptions.format = options.format || 'A4';
+            pdfOptions.landscape = options.orientation === 'landscape';
+            pdfOptions.margin = {
+                top: '5mm',
+                right: '5mm',
+                bottom: '5mm',
+                left: '5mm'
+            };
+            pdfOptions.preferCSSPageSize = false;
+        }
+
+        const pdfBuffer = await page.pdf(pdfOptions);
 
         await page.close();
 

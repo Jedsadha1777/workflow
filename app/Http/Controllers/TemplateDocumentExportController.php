@@ -15,7 +15,9 @@ class TemplateDocumentExportController extends Controller
         }
 
         $sheets = $content['sheets'] ?? [];
-        $orientation = $templateDocument->pdf_orientation ?? 'portrait';
+        
+        $orientation = request('orientation') ?? $templateDocument->pdf_orientation ?? 'portrait';
+
 
         $html = view('pdf.document-puppeteer', [
             'document' => null,

@@ -19,7 +19,13 @@ class DocumentExportController extends Controller
         $sheets = $content['sheets'] ?? [];
         $formData = $document->form_data ?? [];
 
-        $orientation = self::detectOrientation($sheets);
+        $orientation = 'portrait';
+        if ($document->template_document_id) {
+            $template = $document->template;
+            if ($template) {
+                $orientation = $template->pdf_orientation ?? 'portrait';
+            }
+        }
 
         foreach ($sheets as &$sheet) {
             $sheetHtml = $sheet['html'];
@@ -27,33 +33,45 @@ class DocumentExportController extends Controller
 
             if (!empty($formData) && isset($formData[$sheetName])) {
                 foreach ($formData[$sheetName] as $cell => $value) {
+                    // ข้ามถ้าค่ายังเป็น shortcode component
+                    if (is_string($value)) {
+                        $trimmedValue = trim($value);
+                        if (preg_match('/^\[(signature|input|textarea|date|select|checkbox|radio|number)/', $trimmedValue)) {
+                            continue;
+                        }
+                        if (empty($trimmedValue)) {
+                            continue;
+                        }
+                    }
+                    
                     if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
-                        $approver = \App\Models\User::find($value['approver_id']);
-                        
-                        if ($approver && $approver->signature_image) {
-                            $signaturePath = storage_path('app/public/' . $approver->signature_image);
+                        // ถ้ายังไม่มี approver_id หรือยังไม่ได้ sign → แสดง placeholder
+                        if (empty($value['approver_id']) || empty($value['signed_at'])) {
+                            $signatureHtml = '<div class="border-2 border-dashed border-gray-300 rounded p-4 text-center text-gray-500">Signature will appear here after approval</div>';
+                        } else {
+                            $approver = \App\Models\User::find($value['approver_id']);
                             
-                            if (file_exists($signaturePath)) {
-                                $imageData = base64_encode(file_get_contents($signaturePath));
-                                $imageMimeType = mime_content_type($signaturePath);
-                                $base64Image = 'data:' . $imageMimeType . ';base64,' . $imageData;
+                            if ($approver && $approver->signature_image) {
+                                $signaturePath = storage_path('app/public/' . $approver->signature_image);
                                 
-                                $signatureHtml = '<div style="text-align:center;padding:8px;">' .
-                                    '<img src="' . $base64Image . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
-                                    '<div style="font-size:11px;color:#6b7280;margin-top:4px;">' . htmlspecialchars($approver->name) . '</div>' .
-                                    '<div style="font-size:10px;color:#9ca3af;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
-                                    '</div>';
+                                if (file_exists($signaturePath)) {
+                                    $imageData = base64_encode(file_get_contents($signaturePath));
+                                    $imageMimeType = mime_content_type($signaturePath);
+                                    $base64Image = 'data:' . $imageMimeType . ';base64,' . $imageData;
+                                    
+                                    $signatureHtml = '<div style="text-align:center;">' .
+                                        '<img src="' . $base64Image . '" style="max-width:150px;max-height:60px;display:block;margin:0 auto;" alt="Signature">' .
+                                        '</div>';
+                                } else {
+                                    $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
+                                        '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
+                                        '</div>';
+                                }
                             } else {
                                 $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                                    '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver->name) . '</div>' .
-                                    '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
+                                    '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
                                     '</div>';
                             }
-                        } else {
-                            $signatureHtml = '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                                '<div style="font-weight:bold;color:#065f46;">✓ ' . htmlspecialchars($approver ? $approver->name : 'Unknown') . '</div>' .
-                                '<div style="font-size:11px;color:#6b7280;margin-top:4px;">Signed: ' . date('Y-m-d H:i', strtotime($value['signed_at'])) . '</div>' .
-                                '</div>';
                         }
                         
                         $sheetHtml = preg_replace(
@@ -62,7 +80,16 @@ class DocumentExportController extends Controller
                             $sheetHtml
                         );
                     } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
-                        $dateHtml = '<div style="padding:4px;"><strong>' . htmlspecialchars($value['date']) . '</strong></div>';
+                        // ข้ามถ้ายังไม่ได้เลือกวันที่
+                        if (empty($value['date'])) {
+                            continue;
+                        }
+                        
+                        // แปลงเป็น dd/mm/yyyy
+                        $date = new \DateTime($value['date']);
+                        $formattedDate = $date->format('d/m/Y');
+                        
+                        $dateHtml = '<div style="padding:4px;">' . htmlspecialchars($formattedDate) . '</div>';
                         
                         $sheetHtml = preg_replace(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
@@ -74,13 +101,19 @@ class DocumentExportController extends Controller
                         $sheetHtml = preg_replace_callback(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
                             function($matches) use ($escapedValue) {
-                                return '<td' . $matches[1] . '><div style="padding:4px;"><strong>' . $escapedValue . '</strong></div></td>';
+                                return '<td' . $matches[1] . '><div style="padding:4px;">' . $escapedValue . '</div></td>';
                             },
                             $sheetHtml
                         );
                     }
                 }
             }
+            
+            // แทนที่ #VALUE!, #DIV/0!, #REF!, #N/A, #NAME? ด้วยค่าว่าง
+            $sheetHtml = preg_replace('/#VALUE!|#DIV\/0!|#REF!|#N\/A|#NAME\?/i', '', $sheetHtml);
+            
+            // แทนที่ shortcode components ด้วย div เปล่าเพื่อรักษา structure
+            $sheetHtml = preg_replace('/\[(?:signature|input|textarea|date|select|checkbox|radio|number|text)(?:\s+[^\]]+)?\]/i', '<div style="padding:4px;">&nbsp;</div>', $sheetHtml);
 
             $sheet['html'] = $sheetHtml;
         }
@@ -91,6 +124,16 @@ class DocumentExportController extends Controller
             'orientation' => $orientation,
         ])->render();
 
+        \Log::info('PDF Export Debug', [
+            'document_id' => $document->id,
+            'template_id' => $document->template_document_id,
+            'orientation' => $orientation,
+            'sheets_count' => count($sheets),
+        ]);
+        
+        // Save HTML for debugging
+        file_put_contents(storage_path('logs/last-pdf-export.html'), $html);
+
         $pdfServiceUrl = config('services.pdf.url', 'http://localhost:3000');
         
         try {
@@ -99,7 +142,6 @@ class DocumentExportController extends Controller
                 'options' => [
                     'format' => 'A4',
                     'orientation' => $orientation,
-                    'zoom' => 0.4,
                     'printBackground' => true,
                 ]
             ]);
@@ -135,7 +177,7 @@ class DocumentExportController extends Controller
         }
 
         $excelPath = storage_path('app/public/' . $template->excel_file);
-
+        
         if (!file_exists($excelPath)) {
             return response()->json(['error' => 'Excel file does not exist'], 404);
         }
@@ -146,7 +188,7 @@ class DocumentExportController extends Controller
         foreach ($formData as $sheetName => $cells) {
             try {
                 $worksheet = $spreadsheet->getSheetByName($sheetName);
-
+                
                 if (!$worksheet) {
                     continue;
                 }
@@ -163,10 +205,10 @@ class DocumentExportController extends Controller
 
                         if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
                             $approver = \App\Models\User::find($value['approver_id']);
-
+                            
                             if ($approver && $approver->signature_image) {
                                 $signaturePath = storage_path('app/public/' . $approver->signature_image);
-
+                                
                                 \Log::info("Excel Signature Debug", [
                                     'approver' => $approver->name,
                                     'signature_image' => $approver->signature_image,
@@ -174,7 +216,7 @@ class DocumentExportController extends Controller
                                     'file_exists' => file_exists($signaturePath),
                                     'cell' => $cellCoord
                                 ]);
-
+                                
                                 if (file_exists($signaturePath)) {
                                     try {
                                         $drawing = new Drawing();
@@ -186,10 +228,10 @@ class DocumentExportController extends Controller
                                         $drawing->setOffsetX(5);
                                         $drawing->setOffsetY(5);
                                         $drawing->setWorksheet($worksheet);
-
+                                        
                                         $rowNumber = $worksheet->getCell($cellCoord)->getRow();
                                         $worksheet->getRowDimension($rowNumber)->setRowHeight(60);
-
+                                        
                                         \Log::info("Excel Signature Success", [
                                             'cell' => $cellCoord,
                                             'approver' => $approver->name
@@ -245,27 +287,5 @@ class DocumentExportController extends Controller
         $writer->save($tempFile);
 
         return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
-    }
-
-    private static function detectOrientation(array $sheets): string
-    {
-        $maxWidth = 0;
-        $maxHeight = 0;
-        
-        foreach ($sheets as $sheet) {
-            preg_match_all('/width:\s*(\d+)px/', $sheet['html'], $widthMatches);
-            $width = array_sum(array_map('intval', $widthMatches[1]));
-            
-            preg_match_all('/height:\s*(\d+)px/', $sheet['html'], $heightMatches);
-            $height = array_sum(array_map('intval', $heightMatches[1]));
-            
-            $maxWidth = max($maxWidth, $width);
-            $maxHeight = max($maxHeight, $height);
-        }
-        
-        // A4 Portrait: 794px x 1123px (content: 756px x 1048px)
-        // A4 Landscape: 1123px x 794px (content: 1048px x 756px)
-        // ใช้ width > 900px เป็นตัวตัดสิน landscape
-        return $maxWidth > 900 ? 'landscape' : 'portrait';
     }
 }
