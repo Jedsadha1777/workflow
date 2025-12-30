@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -61,15 +62,55 @@ class Document extends Model
 
     public function canBeEditedBy(User $user): bool
     {
+        // Admin ห้ามแก้ไขเนื้อหาเอกสาร
         if ($user->isAdmin()) {
-            return true;
+            return false;
         }
 
+        // ต้องเป็นเจ้าของเอกสาร
         if ($this->creator_id !== $user->id) {
             return false;
         }
 
+        // แก้ไขได้แค่ DRAFT
         return $this->status === DocumentStatus::DRAFT;
+    }
+
+    public function canBeRecalledBy(User $user): bool
+    {
+        // ต้องเป็นสถานะ PENDING
+        if ($this->status !== DocumentStatus::PENDING) {
+            return false;
+        }
+
+        // ต้องเป็นเจ้าของเอกสาร
+        if ($this->creator_id !== $user->id) {
+            return false;
+        }
+
+        // ต้องยังไม่มีใครอนุมัติเลย
+        $hasApproved = $this->approvers()
+            ->where('status', ApprovalStatus::APPROVED->value)
+            ->exists();
+
+        return !$hasApproved;
+    }
+
+    public function recallToDraft(): void
+    {
+        $this->update([
+            'status' => DocumentStatus::DRAFT,
+            'submitted_at' => null,
+            
+        ]);
+
+        // Reset approvers status กลับเป็น PENDING
+        $this->approvers()->update([
+            'status' => ApprovalStatus::PENDING->value,
+            'approved_at' => null,
+            'rejected_at' => null,
+            'comment' => null,
+        ]);
     }
 
     public function canBeViewedBy(User $user): bool
@@ -118,7 +159,6 @@ class Document extends Model
         return 'none';
     }
 
-    // ฟังก์ชันช่วยสำหรับ form data
     public function getFormValue(string $sheet, string $cell): mixed
     {
         return $this->form_data[$sheet][$cell] ?? null;
@@ -127,128 +167,101 @@ class Document extends Model
     public function setFormValue(string $sheet, string $cell, mixed $value): void
     {
         $formData = $this->form_data ?? [];
-        
-        if (!isset($formData[$sheet])) {
-            $formData[$sheet] = [];
-        }
-        
         $formData[$sheet][$cell] = $value;
         $this->form_data = $formData;
     }
 
-    public function getSignatureData(string $sheet, string $cell): ?array
-    {
-        $value = $this->getFormValue($sheet, $cell);
-        
-        if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
-            return $value;
-        }
-        
-        return null;
-    }
-
-    public function setSignature(string $sheet, string $cell, int $approverId, ?string $signedAt = null): void
+    public function setSignature(string $sheet, string $cell, int $approverId): void
     {
         $this->setFormValue($sheet, $cell, [
             'type' => 'signature',
             'approver_id' => $approverId,
-            'signed_at' => $signedAt ?? now()->toISOString(),
+            'signed_at' => now()->toDateTimeString(),
         ]);
     }
 
-    public function setApprovedDate(string $sheet, string $cell, ?string $date = null): void
+    public function setApprovedDate(string $sheet, string $cell): void
     {
-        // $this->setFormValue($sheet, $cell, $date ?? now()->toISOString());
-         $this->setFormValue($sheet, $cell, [
-            'type' => 'date',
-            'date' => $date ?? now()->toISOString(),
-        ]);
+        $this->setFormValue($sheet, $cell, now()->format('d/m/Y'));
     }
 
-    public function renderWithData(): string
+    public function getSignatureFields(): ?array
     {
-        if (!$this->content) {
-            return '';
+        if (!$this->template || !$this->template->content) {
+            return null;
         }
 
-        $html = '';
-        $sheets = $this->content['sheets'] ?? [];
+        $content = is_string($this->template->content) 
+            ? json_decode($this->template->content, true) 
+            : $this->template->content;
 
-        foreach ($sheets as $sheet) {
-            $sheetHtml = $sheet['html'];
+        $signatureFields = [];
+
+        foreach ($content['sheets'] ?? [] as $sheet) {
             $sheetName = $sheet['name'];
-            $formData = $this->form_data[$sheetName] ?? [];
-
-            // Replace form fields with actual data
-            foreach ($formData as $cell => $value) {
-                if (is_array($value) && isset($value['type']) && $value['type'] === 'signature') {
-                    $approver = User::find($value['approver_id']);
-                    $signatureHtml = $approver ? 
-                        '<div style="border:2px solid #10b981;padding:10px;text-align:center;background:#f0fdf4;border-radius:6px;">' .
-                        '<div style="font-weight:bold;">' . htmlspecialchars($approver->name) . '</div>' .
-                        '<div style="font-size:12px;color:#6b7280;">Signed at: ' . $value['signed_at'] . '</div>' .
-                        '</div>' : 
-                        '[Signature Pending]';
-                    
-                    $sheetHtml = str_replace('[signature cell="' . $cell . '"]', $signatureHtml, $sheetHtml);
-                } else {
-                    // Replace other form fields
-                    $sheetHtml = preg_replace(
-                        '/\[(?:text|email|tel|number|date|textarea|select|checkbox)\s+[^\]]+cell="' . preg_quote($cell) . '"[^\]]*\]/',
-                        htmlspecialchars($value),
-                        $sheetHtml
-                    );
+            foreach ($sheet['celldata'] ?? [] as $cell) {
+                $cellValue = $cell['v'] ?? null;
+                if ($cellValue && isset($cellValue['ct']['s'])) {
+                    foreach ($cellValue['ct']['s'] as $segment) {
+                        if (isset($segment['v']) && str_contains($segment['v'], '[signature')) {
+                            $row = $cell['r'] + 1;
+                            $col = $this->numberToColumn($cell['c']);
+                            $signatureFields[] = [
+                                'sheet' => $sheetName,
+                                'cell' => $col . $row,
+                                'name' => $segment['v'],
+                            ];
+                        }
+                    }
                 }
             }
-
-            $html .= $sheetHtml;
         }
 
-        return $html;
+        return $signatureFields;
     }
 
-    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
-    public function getFormFields(): array
+    public function getDateFields(): ?array
     {
-        $fields = [];
-        $content = is_string($this->content) ? json_decode($this->content, true) : $this->content;
-        $sheets = $content['sheets'] ?? [];
+        if (!$this->template || !$this->template->content) {
+            return null;
+        }
 
+        $content = is_string($this->template->content) 
+            ? json_decode($this->template->content, true) 
+            : $this->template->content;
 
-        foreach ($sheets as $sheet) {
+        $dateFields = [];
+
+        foreach ($content['sheets'] ?? [] as $sheet) {
             $sheetName = $sheet['name'];
-            $html = $sheet['html'];
-
-            preg_match_all('/\[(text|email|tel|number|date|textarea|select|checkbox|signature)(\*?)\s+([^\s\]]+)(?:\s+cell="([^"]+)")?\]/', $html, $matches, PREG_SET_ORDER);
-
-            foreach ($matches as $match) {
-                $fieldType = $match[1];
-                $required = $match[2] === '*';
-                $fieldName = $match[3];
-                $cell = $match[4] ?? null;
-
-                $fields[] = [
-                    'sheet' => $sheetName,
-                    'type' => $fieldType,
-                    'name' => $fieldName,
-                    'cell' => $cell,
-                    'required' => $required,
-                ];
+            foreach ($sheet['celldata'] ?? [] as $cell) {
+                $cellValue = $cell['v'] ?? null;
+                if ($cellValue && isset($cellValue['ct']['s'])) {
+                    foreach ($cellValue['ct']['s'] as $segment) {
+                        if (isset($segment['v']) && str_contains($segment['v'], '[date')) {
+                            $row = $cell['r'] + 1;
+                            $col = $this->numberToColumn($cell['c']);
+                            $dateFields[] = [
+                                'sheet' => $sheetName,
+                                'cell' => $col . $row,
+                                'name' => $segment['v'],
+                            ];
+                        }
+                    }
+                }
             }
         }
 
-        return $fields;
+        return $dateFields;
     }
 
-
-    public function getSignatureFields(): array
+    private function numberToColumn(int $num): string
     {
-        return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'signature');
+        $col = '';
+        while ($num >= 0) {
+            $col = chr(65 + ($num % 26)) . $col;
+            $num = intval($num / 26) - 1;
+        }
+        return $col;
     }
-
-    public function getDateFields(): array
-    {
-        return array_filter($this->getFormFields(), fn($field) => $field['type'] === 'date');
-    }
-    // ซ้ำกับ TemplateDocument กำลังพิจรณาย้ายออกจาก TemplateDocument 22/12/2025
 }

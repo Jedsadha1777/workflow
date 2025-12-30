@@ -249,6 +249,25 @@ window.runCalculations_' . $formId . ' = function() {
                         ]);
                     })
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id() && $record->approvers()->count() > 0),
+           
+                    
+                Tables\Actions\Action::make('recall')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Recall Document')
+                    ->modalDescription('Are you sure you want to recall this document back to draft? You can edit it again after recalling.')
+                    ->modalSubmitActionLabel('Yes, Recall')
+                    ->action(function (Document $record) {
+                        $record->recallToDraft();
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('Document Recalled')
+                            ->body('The document has been recalled back to draft status.')
+                            ->send();
+                    })
+                    ->visible(fn($record) => $record->canBeRecalledBy(auth()->user())),
             ]);
     }
 

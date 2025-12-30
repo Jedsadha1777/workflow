@@ -79,8 +79,6 @@ class ViewDocument extends ViewRecord
             ->url(fn() => route('documents.export-excel', ['document' => $this->record]))
             ->openUrlInNewTab();
 
-        $actions[] = Actions\EditAction::make();
-
         $actions[] = Actions\Action::make('back')
             ->label('Return to List')
             ->icon('heroicon-o-arrow-left')

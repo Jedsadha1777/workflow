@@ -336,8 +336,6 @@ window.runCalculations_' . $formId . ' = function() {
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->defaultSort('id', 'desc');
     }
@@ -346,8 +344,6 @@ window.runCalculations_' . $formId . ' = function() {
     {
         return [
             'index' => Pages\ListDocuments::route('/'),
-            'create' => Pages\CreateDocument::route('/create'),
-            'edit' => Pages\EditDocument::route('/{record}/edit'),
             'view' => Pages\ViewDocument::route('/{record}'),
         ];
     }
