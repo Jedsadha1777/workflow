@@ -55,6 +55,7 @@
                         <!-- Action Buttons -->
                         <button type="button"
                                 @click="extractStyles()"
+                                @extract-done.window="$el.disabled = true; $el.classList.add('opacity-50', 'cursor-not-allowed')"
                                 class="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-500">
                             Extract CSS
                         </button>
@@ -76,7 +77,7 @@
                         </button>
                         
                         <button type="button"
-                           @click="console.log('localOrientation:', localOrientation); window.open(`/template-documents/{{ $this->record->id }}/preview-pdf?orientation=${localOrientation}`, '_blank')"
+                           @click="window.open(`/template-documents/{{ $this->record->id }}/preview-pdf?orientation=${localOrientation}`, '_blank')"
                            class="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-500">
                             Preview PDF
                         </button>
@@ -90,11 +91,28 @@
                 </div>
 
                 <!-- Split View Container -->
-                <div class="flex h-[calc(100vh-64px)] overflow-hidden">
+                <div class="flex h-[calc(100vh-64px)] overflow-hidden"
+                     @mousemove="
+                        if (isDragging) {
+                            console.log('Dragging... clientX:', $event.clientX);
+                            const containerWidth = $el.offsetWidth;
+                            const deltaX = $event.clientX - startX;
+                            const deltaPercent = (deltaX / containerWidth) * 100;
+                            leftWidth = Math.max(20, Math.min(80, startWidth + deltaPercent));
+                            console.log('New leftWidth:', leftWidth);
+                            
+                            if (editor) {
+                                editor.refresh();
+                            }
+                        }
+                     "
+                     @mouseup="isDragging = false">
                     <!-- Left Panel - Code + CSS -->
-                    <div class="w-1/2 border-r flex flex-col min-h-0">
-                        <!-- Generated CSS - EDITABLE -->
-                        <div class="p-4 border-b overflow-y-auto" style="max-height: 300px; background-color:#f9fafb;">
+                    <div class="border-r flex flex-col min-h-0" 
+                         x-bind:style="{ width: leftWidth + '%' }"
+                         x-effect="console.log('Left Panel width effect:', leftWidth)">
+                        <!-- Generated CSS - EDITABLE + RESIZABLE -->
+                        <div class="p-4 border-b overflow-y-auto" style="height: 250px; min-height: 100px; max-height: 600px; resize: vertical; background-color:#f9fafb;">
                             <h3 class="font-semibold mb-3">Generated CSS</h3>
                             
                             <div x-show="!generatedCss" class="text-sm" style="color:#6b7280;">
@@ -105,7 +123,7 @@
                                       x-model="generatedCss"
                                       @input="updatePreview()"
                                       class="w-full text-xs font-mono p-3 border rounded bg-white"
-                                      style="min-height: 200px; font-family: monospace; white-space: pre;"
+                                      style="height: calc(100% - 40px); font-family: monospace; white-space: pre; resize: none;"
                                       spellcheck="false"></textarea>
                         </div>
 
@@ -122,8 +140,20 @@
                         </div>
                     </div>
 
+                    <!-- Draggable Divider -->
+                    <div class="bg-gray-400 hover:bg-blue-500 transition-all"
+                         style="flex-shrink: 0; width: 4px; cursor: col-resize;"
+                         @mousedown="
+                            console.log('Divider mousedown');
+                            isDragging = true;
+                            startX = $event.clientX;
+                            startWidth = leftWidth;
+                            $event.preventDefault();
+                            console.log('isDragging:', isDragging, 'startX:', startX, 'startWidth:', startWidth);
+                         "></div>
+
                     <!-- Right Panel - Preview -->
-                    <div class="w-1/2 flex flex-col min-h-0">
+                    <div class="flex flex-col min-h-0" x-bind:style="{ width: (100 - leftWidth) + '%' }">
                         <!-- Zoom Controls -->
                         <div class="p-4 border-b flex items-center gap-4" style="background-color:#f9fafb;">
                             <span class="text-sm font-medium">Zoom:</span>
@@ -214,6 +244,11 @@
                 generatedCss: '',
                 searchVisible: false,
                 isSaving: false,
+                skipEditorChange: false,
+                leftWidth: 50,
+                isDragging: false,
+                startX: 0,
+                startWidth: 0,
 
                 init() {
                     const contentData = @json($this->record->content);
@@ -225,6 +260,14 @@
                     this.sheets = parsedContent.sheets || [];
                     this.generatedCss = parsedContent.generatedCss || '';
                     this.cssClasses = parsedContent.cssClasses || [];
+                    
+                    // ตัด <style> tags ออกจาก HTML ถ้ามี (เพราะ CSS อยู่ใน generatedCss แล้ว)
+                    this.sheets = this.sheets.map(sheet => {
+                        let html = sheet.html || '';
+                        // ตัด <style>...</style> ออก
+                        html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').trim();
+                        return { ...sheet, html };
+                    });
                     
                     console.log('Total sheets loaded:', this.sheets.length);
                     console.log('Sheets:', this.sheets);
@@ -313,8 +356,44 @@
                                 console.log('=== SETTING TO EDITOR ===');
                                 console.log('Result length:', result.length);
                                 
-                                // ไม่ clear ก่อน - set ตรงๆ
-                                this.editor.setValue(result);
+                                // Set flag เพื่อ skip change handler
+                                this.skipEditorChange = true;
+                                
+                                // ทำลาย editor เดิม
+                                if (this.editor) {
+                                    const parent = this.editor.getWrapperElement().parentNode;
+                                    parent.removeChild(this.editor.getWrapperElement());
+                                    this.editor = null;
+                                }
+                                
+                                // สร้าง editor ใหม่
+                                this.editor = CodeMirror(this.$refs.editorContainer, {
+                                    mode: 'htmlmixed',
+                                    theme: 'monokai',
+                                    lineNumbers: true,
+                                    lineWrapping: true,
+                                    value: result
+                                });
+                                
+                                // Set change handler ใหม่
+                                this.editor.on('change', () => {
+                                    console.log('=== CHANGE EVENT FIRED ===', 'skipEditorChange:', this.skipEditorChange);
+                                    if (this.skipEditorChange) {
+                                        console.log('SKIPPED by flag');
+                                        return;
+                                    }
+                                    console.log('EXECUTING change handler');
+                                    this.currentHtml = this.editor.getValue();
+                                    this.sheets[this.currentSheet].html = this.currentHtml;
+                                    this.updatePreview();
+                                });
+                                
+                                // อัพเดทค่า manual
+                                this.currentHtml = result;
+                                this.sheets[this.currentSheet].html = result;
+                                
+                                // ปิด flag
+                                this.skipEditorChange = false;
                                 
                                 // เช็คว่า set สำเร็จไหม
                                 const afterSet = this.editor.getValue();
@@ -394,6 +473,12 @@
                             });
 
                             this.editor.on('change', () => {
+                                console.log('=== CHANGE EVENT FIRED ===', 'skipEditorChange:', this.skipEditorChange);
+                                if (this.skipEditorChange) {
+                                    console.log('SKIPPED by flag');
+                                    return;
+                                }
+                                console.log('EXECUTING change handler');
                                 this.currentHtml = this.editor.getValue();
                                 this.sheets[this.currentSheet].html = this.currentHtml;
                                 this.updatePreview();
@@ -410,6 +495,20 @@
                 },
 
                 extractStyles() {
+                    // เช็คว่า extract ไปแล้วหรือยัง
+                    if (this.generatedCss && this.generatedCss.trim().length > 0) {
+                        alert('Styles have already been extracted. Please refresh the page if you want to extract again.');
+                        return;
+                    }
+                    
+                    // Set flag ก่อนเลย เพื่อป้องกัน race condition
+                    this.skipEditorChange = true;
+                    
+                    // Sync currentHtml จาก editor
+                    if (this.editor) {
+                        this.currentHtml = this.editor.getValue();
+                    }
+                    
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(this.currentHtml, 'text/html');
                     const allElements = doc.querySelectorAll('[style]');
@@ -585,10 +684,46 @@
                         }
                         
                         console.log('=== EXTRACT CSS - SETTING TO EDITOR ===');
+                        console.log('BEFORE - will recreate editor with length:', beautified.length);
                         
-                        // ไม่ clear - set ตรงๆ
-                        this.editor.setValue(beautified);
+                        // ทำลาย editor เดิม
+                        if (this.editor) {
+                            const parent = this.editor.getWrapperElement().parentNode;
+                            parent.removeChild(this.editor.getWrapperElement());
+                            this.editor = null;
+                        }
                         
+                        // สร้าง editor ใหม่
+                        this.editor = CodeMirror(this.$refs.editorContainer, {
+                            mode: 'htmlmixed',
+                            theme: 'monokai',
+                            lineNumbers: true,
+                            lineWrapping: true,
+                            value: beautified
+                        });
+                        
+                        // Set change handler ใหม่
+                        this.editor.on('change', () => {
+                            console.log('=== CHANGE EVENT FIRED ===', 'skipEditorChange:', this.skipEditorChange);
+                            if (this.skipEditorChange) {
+                                console.log('SKIPPED by flag');
+                                return;
+                            }
+                            console.log('EXECUTING change handler');
+                            this.currentHtml = this.editor.getValue();
+                            this.sheets[this.currentSheet].html = this.currentHtml;
+                            this.updatePreview();
+                        });
+                        
+                        console.log('AFTER - editor recreated, content length:', this.editor.getValue().length);
+                        
+                        // อัพเดทค่า manual
+                        this.currentHtml = beautified;
+                        this.sheets[this.currentSheet].html = beautified;
+                        
+                        // ปิด flag
+                        this.skipEditorChange = false;
+                    
                         // เช็คหลัง set
                         const afterSet = this.editor.getValue();
                         console.log('After setValue length:', afterSet.length);
@@ -596,7 +731,7 @@
                         
                         if (afterSet.length < beautified.length * 0.95) {
                             alert('CodeMirror data loss detected! Reverting...');
-                            this.currentHtml = this.sheets[this.currentSheet].html; // revert
+                            this.currentHtml = this.sheets[this.currentSheet].html;
                             this.editor.setValue(this.currentHtml);
                             return;
                         }
@@ -609,6 +744,9 @@
                     
                     // Update preview with CSS + HTML
                     this.updatePreview();
+                    
+                    // Dispatch event เพื่อ disable ปุ่ม
+                    this.$dispatch('extract-done');
                 },
                 
                 rebuildStyleString(styleAst) {

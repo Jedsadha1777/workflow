@@ -2,6 +2,7 @@
 
 namespace App\Filament\Admin\Resources\DocumentResource\Pages;
 
+use App\Enums\ApprovalStatus;
 use App\Filament\Admin\Resources\DocumentResource;
 use Filament\Actions;
 use Filament\Infolists;
@@ -23,6 +24,14 @@ class ViewDocument extends ViewRecord
                 Infolists\Components\TextEntry::make('status')
                     ->badge()
                     ->color(fn ($state) => $state->color()),
+                Infolists\Components\TextEntry::make('submitted_at')
+                    ->label('Submitted At')
+                    ->dateTime('d/m/Y H:i')
+                    ->visible(fn($record) => $record->submitted_at !== null),
+                Infolists\Components\TextEntry::make('approved_at')
+                    ->label('Approved At')
+                    ->dateTime('d/m/Y H:i')
+                    ->visible(fn($record) => $record->approved_at !== null),
                 Infolists\Components\ViewEntry::make('content')
                     ->label('')
                     ->view('filament.pages.view-document-content')
@@ -37,6 +46,14 @@ class ViewDocument extends ViewRecord
                         Infolists\Components\TextEntry::make('status')
                             ->badge()
                             ->color(fn ($state) => $state->color()),
+                        Infolists\Components\TextEntry::make('approved_at')
+                            ->label('Approved At')
+                            ->dateTime('d/m/Y H:i')
+                            ->visible(fn($record) => $record->approved_at !== null),
+                        Infolists\Components\TextEntry::make('rejected_at')
+                            ->label('Rejected At')
+                            ->dateTime('d/m/Y H:i')
+                            ->visible(fn($record) => $record->rejected_at !== null),
                         Infolists\Components\TextEntry::make('comment')
                             ->visible(fn ($record) => !empty($record->comment)),
                     ])
