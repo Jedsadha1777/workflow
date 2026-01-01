@@ -101,7 +101,6 @@ class Document extends Model
         $this->update([
             'status' => DocumentStatus::DRAFT,
             'submitted_at' => null,
-            
         ]);
 
         // Reset approvers status กลับเป็น PENDING
@@ -187,72 +186,24 @@ class Document extends Model
 
     public function getSignatureFields(): ?array
     {
-        if (!$this->template || !$this->template->content) {
+        if (!$this->template) {
             return null;
         }
-
-        $content = is_string($this->template->content) 
-            ? json_decode($this->template->content, true) 
-            : $this->template->content;
-
-        $signatureFields = [];
-
-        foreach ($content['sheets'] ?? [] as $sheet) {
-            $sheetName = $sheet['name'];
-            foreach ($sheet['celldata'] ?? [] as $cell) {
-                $cellValue = $cell['v'] ?? null;
-                if ($cellValue && isset($cellValue['ct']['s'])) {
-                    foreach ($cellValue['ct']['s'] as $segment) {
-                        if (isset($segment['v']) && str_contains($segment['v'], '[signature')) {
-                            $row = $cell['r'] + 1;
-                            $col = $this->numberToColumn($cell['c']);
-                            $signatureFields[] = [
-                                'sheet' => $sheetName,
-                                'cell' => $col . $row,
-                                'name' => $segment['v'],
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-
-        return $signatureFields;
+        
+        // ใช้ฟังก์ชันจาก TemplateDocument ที่มีอยู่แล้ว
+        // TemplateDocument::getFormFields() หา fields จาก HTML แล้ว
+        return $this->template->getSignatureFields();
     }
 
     public function getDateFields(): ?array
     {
-        if (!$this->template || !$this->template->content) {
+        if (!$this->template) {
             return null;
         }
-
-        $content = is_string($this->template->content) 
-            ? json_decode($this->template->content, true) 
-            : $this->template->content;
-
-        $dateFields = [];
-
-        foreach ($content['sheets'] ?? [] as $sheet) {
-            $sheetName = $sheet['name'];
-            foreach ($sheet['celldata'] ?? [] as $cell) {
-                $cellValue = $cell['v'] ?? null;
-                if ($cellValue && isset($cellValue['ct']['s'])) {
-                    foreach ($cellValue['ct']['s'] as $segment) {
-                        if (isset($segment['v']) && str_contains($segment['v'], '[date')) {
-                            $row = $cell['r'] + 1;
-                            $col = $this->numberToColumn($cell['c']);
-                            $dateFields[] = [
-                                'sheet' => $sheetName,
-                                'cell' => $col . $row,
-                                'name' => $segment['v'],
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-
-        return $dateFields;
+        
+        // ใช้ฟังก์ชันจาก TemplateDocument ที่มีอยู่แล้ว
+        // TemplateDocument::getFormFields() หา fields จาก HTML แล้ว
+        return $this->template->getDateFields();
     }
 
     private function numberToColumn(int $num): string

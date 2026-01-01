@@ -200,7 +200,6 @@ window.templateFormHandler = function(formId, existingData) {
                     if (sheet && cell) {
                         if (!data[sheet]) data[sheet] = {};
                         data[sheet][cell] = field.type === 'checkbox' ? field.checked : field.value;
-                        console.log('Added calculated:', sheet + ':' + cell, '=', this.formData[sheet][cell]);
                     }
                 }
             });
