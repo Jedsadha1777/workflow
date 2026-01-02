@@ -14,7 +14,7 @@ class ViewLogs extends Page implements HasTable
     use InteractsWithTable;
 
     protected static string $resource = DocumentResource::class;
-    protected static string $view = 'filament.pages.view-logs';
+    protected static string $view = 'filament.admin.resources.document-resource.pages.view-logs';
 
     public function table(Table $table): Table
     {
@@ -114,6 +114,7 @@ class ViewLogs extends Page implements HasTable
 
     public function getTitle(): string
     {
+
         return 'All Document Activity Logs';
     }
 }

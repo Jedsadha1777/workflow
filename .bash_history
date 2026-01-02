@@ -202,3 +202,10 @@ git commit -m "add audit log to document"
 exit
 php artisan route:clear
 exit
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
+php artisan optimize:clear
+php artisan route:list --name=filament.admin.resources.documents
+php artisan view:clear
+exit
