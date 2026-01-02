@@ -4,9 +4,12 @@ namespace App\Filament\App\Resources\DocumentResource\Pages;
 
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentActivityAction;
+
 use App\Filament\App\Resources\DocumentResource;
 use App\Mail\DocumentApproved;
 use App\Mail\DocumentRejected;
+use App\Models\DocumentActivityLog;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists;
@@ -56,6 +59,28 @@ class ViewDocument extends ViewRecord
                         ->visible(fn($record) => !empty($record->comment)),
                 ])
                 ->columnSpanFull();
+
+
+                $schema[] = Infolists\Components\Section::make('Activity Timeline')
+                ->schema([
+                    Infolists\Components\RepeatableEntry::make('activityLogs')
+                        ->label('')
+                        ->state(fn($record) => $record->activityLogs)
+                        ->schema([
+                            Infolists\Components\TextEntry::make('action')
+                                ->badge()
+                                ->color(fn($state) => $state->color())
+                                ->icon(fn($state) => $state->icon()),
+                            Infolists\Components\TextEntry::make('actor_name')->label('By'),
+                            Infolists\Components\TextEntry::make('performed_at')->dateTime('d/m/Y H:i')->label('When'),
+                            Infolists\Components\TextEntry::make('comment')->visible(fn($record) => !empty($record->comment)),
+                        ])
+                        ->columns(4)
+                ])
+                ->collapsible()
+                ->collapsed()
+                ->columnSpanFull();
+                
         } else {
             $schema[] = Infolists\Components\Section::make('Approvers')
                 ->schema([
@@ -144,6 +169,11 @@ class ViewDocument extends ViewRecord
                     if ($hasNextApprover) {
                         $this->record->update(['current_step' => $nextStep]);
 
+                        DocumentActivityLog::log($this->record, DocumentActivityAction::APPROVED, null, [
+                            'step_order' => $currentApproval->step_order,
+                            'comment' => $data['comment'] ?? null,
+                        ]);
+
                          $nextApprover = $this->record->approvers()
                             ->where('step_order', $nextStep)
                             ->first();
@@ -159,9 +189,18 @@ class ViewDocument extends ViewRecord
                             ->body('The document has been approved and sent to the next approver.')
                             ->send();
                     } else {
+                        $oldStatus = $this->record->status;
+
                         $this->record->update([
                             'status' => DocumentStatus::APPROVED,
                             'approved_at' => now(),
+                        ]);
+
+                        DocumentActivityLog::log($this->record, DocumentActivityAction::APPROVED, null, [
+                            'old_status' => $oldStatus->value,
+                            'new_status' => DocumentStatus::APPROVED->value,
+                            'step_order' => $currentApproval->step_order,
+                            'comment' => $data['comment'] ?? null,
                         ]);
 
                         if ($this->record->creator->email) {
@@ -198,8 +237,17 @@ class ViewDocument extends ViewRecord
                         'comment' => $data['comment'],
                     ]);
 
+                    $oldStatus = $this->record->status;
+
                     $this->record->update([
                         'status' => DocumentStatus::REJECTED,
+                    ]);
+
+                    DocumentActivityLog::log($this->record, DocumentActivityAction::REJECTED, null, [
+                        'old_status' => $oldStatus->value,
+                        'new_status' => DocumentStatus::REJECTED->value,
+                        'step_order' => $currentApproval->step_order,
+                        'comment' => $data['comment'],
                     ]);
 
                     if ($this->record->creator->email) {

@@ -2,12 +2,14 @@
 
 namespace App\Filament\App\Resources;
 
+use App\Enums\DocumentActivityAction;
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
 use App\Filament\App\Resources\DocumentResource\Pages;
 use App\Mail\DocumentRecalled;
 use App\Mail\DocumentSubmitted;
 use App\Models\Document;
+use App\Models\DocumentActivityLog;
 use App\Models\TemplateDocument;
 use App\Models\User;
 use Filament\Forms;
@@ -245,10 +247,17 @@ window.runCalculations_' . $formId . ' = function() {
                             return;
                         }
 
+                        $oldStatus = $record->status;
+
                         $record->update([
                             'status' => DocumentStatus::PENDING,
                             'submitted_at' => now(),
                             'current_step' => 1,
+                        ]);
+
+                        DocumentActivityLog::log($record, DocumentActivityAction::SUBMITTED, null, [
+                            'old_status' => $oldStatus->value,
+                            'new_status' => DocumentStatus::PENDING->value,
                         ]);
 
                         $firstApprover = $record->approvers()->where('step_order', 1)->first();
@@ -278,7 +287,14 @@ window.runCalculations_' . $formId . ' = function() {
                          $pendingApprovers = $record->approvers()
                             ->where('status', \App\Enums\ApprovalStatus::PENDING)
                             ->get();
+
+                        $oldStatus = $record->status;
                         $record->recallToDraft();
+
+                        DocumentActivityLog::log($record, DocumentActivityAction::RECALLED, null, [
+                            'old_status' => $oldStatus->value,
+                            'new_status' => DocumentStatus::DRAFT->value,
+                        ]);
 
                         foreach ($pendingApprovers as $approver) {
                             if ($approver->approver->email) {

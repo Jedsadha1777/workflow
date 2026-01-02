@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
 class Document extends Model
 {
     use HasFactory;
@@ -214,5 +213,10 @@ class Document extends Model
             $num = intval($num / 26) - 1;
         }
         return $col;
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(DocumentActivityLog::class)->orderBy('performed_at', 'desc');
     }
 }

@@ -194,3 +194,9 @@ php artisan optimize
 php artisan optimize:clear
 clear
 exit
+php artisan make:migration create_document_activity_logs
+php artisan migrate
+git add .
+git status
+git commit -m "add audit log to document"
+exit
