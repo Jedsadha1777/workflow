@@ -21,7 +21,7 @@ class TemplateDocumentResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return true;
+        return false; //ปิดชั่วคราวรอคอนเฟริมลบออกจริงๆ ภายหลัง 1/1/2026
     }
     public static function canEdit(Model $record): bool
     {

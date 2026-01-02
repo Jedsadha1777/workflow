@@ -22,6 +22,11 @@ class DocumentResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
 
+    public static function canCreate(): bool
+    {
+        return false;  // ห้าม Admin สร้าง document
+    }
+
     public static function form(Form $form): Form
     {
         return $form
