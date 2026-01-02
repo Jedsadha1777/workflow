@@ -5,12 +5,15 @@ namespace App\Filament\App\Resources\DocumentResource\Pages;
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
 use App\Filament\App\Resources\DocumentResource;
+use App\Mail\DocumentApproved;
+use App\Mail\DocumentRejected;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Mail;
 
 class ViewDocument extends ViewRecord
 {
@@ -28,16 +31,15 @@ class ViewDocument extends ViewRecord
         $schema = [
             Infolists\Components\TextEntry::make('title'),
             Infolists\Components\TextEntry::make('creator.name'),
-            Infolists\Components\TextEntry::make('department.name')
-                ->label('Department'),
+            Infolists\Components\TextEntry::make('department.name')->label('Department'),
             Infolists\Components\TextEntry::make('status')
                 ->badge()
                 ->color(fn($state) => $state->color()),
         ];
 
         if ($viewType === 'full') {
-            $schema[] =
-                Infolists\Components\ViewEntry::make('content')
+
+            $schema[] = Infolists\Components\ViewEntry::make('content')
                 ->label('')
                 ->view('filament.pages.view-document-content')
                 ->columnSpanFull();
@@ -45,10 +47,8 @@ class ViewDocument extends ViewRecord
             $schema[] = Infolists\Components\RepeatableEntry::make('approvers')
                 ->label('Approval Steps')
                 ->schema([
-                    Infolists\Components\TextEntry::make('step_order')
-                        ->label('Step'),
-                    Infolists\Components\TextEntry::make('approver.name')
-                        ->label('Approver'),
+                    Infolists\Components\TextEntry::make('step_order')->label('Step'),
+                    Infolists\Components\TextEntry::make('approver.name')->label('Approver'),
                     Infolists\Components\TextEntry::make('status')
                         ->badge()
                         ->color(fn($state) => $state->color()),
@@ -122,9 +122,7 @@ class ViewDocument extends ViewRecord
                     if ($currentApproval->signature_cell) {
                         $parts = explode(':', $currentApproval->signature_cell);
                         if (count($parts) === 2) {
-                            $sheet = $parts[0];
-                            $cell = $parts[1];
-                            $this->record->setSignature($sheet, $cell, $currentApproval->approver_id);
+                            $this->record->setSignature($parts[0], $parts[1], $currentApproval->approver_id);
                             $this->record->save();
                         }
                     }
@@ -132,9 +130,8 @@ class ViewDocument extends ViewRecord
                     if ($currentApproval->approved_date_cell) {
                         $parts = explode(':', $currentApproval->approved_date_cell);
                         if (count($parts) === 2) {
-                            $sheet = $parts[0];
-                            $cell = $parts[1];
-                            $this->record->setApprovedDate($sheet, $cell);
+                            
+                            $this->record->setApprovedDate($parts[0], $parts[1]);
                             $this->record->save();
                         }
                     }
@@ -146,6 +143,16 @@ class ViewDocument extends ViewRecord
 
                     if ($hasNextApprover) {
                         $this->record->update(['current_step' => $nextStep]);
+
+                         $nextApprover = $this->record->approvers()
+                            ->where('step_order', $nextStep)
+                            ->first();
+                        
+                        if ($nextApprover && $nextApprover->approver->email) {
+                            Mail::to($nextApprover->approver->email)
+                                ->queue(new DocumentApproved($this->record, $currentApproval, false));
+                        }
+
                         Notification::make()
                             ->success()
                             ->title('Document Approved')
@@ -156,6 +163,12 @@ class ViewDocument extends ViewRecord
                             'status' => DocumentStatus::APPROVED,
                             'approved_at' => now(),
                         ]);
+
+                        if ($this->record->creator->email) {
+                            Mail::to($this->record->creator->email)
+                                ->queue(new DocumentApproved($this->record, $currentApproval, true));
+                        }
+
                         Notification::make()
                             ->success()
                             ->title('Document Fully Approved')
@@ -188,6 +201,11 @@ class ViewDocument extends ViewRecord
                     $this->record->update([
                         'status' => DocumentStatus::REJECTED,
                     ]);
+
+                    if ($this->record->creator->email) {
+                        Mail::to($this->record->creator->email)
+                            ->queue(new DocumentRejected($this->record, $currentApproval));
+                    }
 
                     Notification::make()
                         ->success()

@@ -5,6 +5,8 @@ namespace App\Filament\App\Resources;
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
 use App\Filament\App\Resources\DocumentResource\Pages;
+use App\Mail\DocumentRecalled;
+use App\Mail\DocumentSubmitted;
 use App\Models\Document;
 use App\Models\TemplateDocument;
 use App\Models\User;
@@ -13,6 +15,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 
@@ -247,6 +250,18 @@ window.runCalculations_' . $formId . ' = function() {
                             'submitted_at' => now(),
                             'current_step' => 1,
                         ]);
+
+                        $firstApprover = $record->approvers()->where('step_order', 1)->first();
+                        if ($firstApprover && $firstApprover->approver->email) {
+                            Mail::to($firstApprover->approver->email)
+                                ->queue(new DocumentSubmitted($record));
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('Document Submitted')
+                            ->body('The document has been submitted for approval.')
+                            ->send();
                     })
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id() && $record->approvers()->count() > 0),
            
@@ -256,10 +271,21 @@ window.runCalculations_' . $formId . ' = function() {
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Recall Document')
-                    ->modalDescription('Are you sure you want to recall this document back to draft? You can edit it again after recalling.')
+                    ->modalDescription('Are you sure you want to recall this document back to draft?')
                     ->modalSubmitActionLabel('Yes, Recall')
                     ->action(function (Document $record) {
+
+                         $pendingApprovers = $record->approvers()
+                            ->where('status', \App\Enums\ApprovalStatus::PENDING)
+                            ->get();
                         $record->recallToDraft();
+
+                        foreach ($pendingApprovers as $approver) {
+                            if ($approver->approver->email) {
+                                Mail::to($approver->approver->email)
+                                    ->queue(new DocumentRecalled($record));
+                            }
+                        }
                         
                         \Filament\Notifications\Notification::make()
                             ->success()

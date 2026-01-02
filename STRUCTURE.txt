@@ -1,0 +1,66 @@
+📁 Email Notification System - File Structure
+================================================
+
+project-root/
+│
+├── app/
+│   ├── Mail/
+│   │   ├── DocumentMail.php                    # Base Mail class
+│   │   ├── DocumentSubmitted.php               # Email เมื่อ submit เอกสาร
+│   │   ├── DocumentApproved.php                # Email เมื่อ approve เอกสาร
+│   │   ├── DocumentRejected.php                # Email เมื่อ reject เอกสาร
+│   │   └── DocumentRecalled.php                # Email เมื่อ recall เอกสาร
+│   │
+│   └── Filament/
+│       └── App/
+│           └── Resources/
+│               ├── DocumentResource.php        # เพิ่ม email ใน submit/recall actions
+│               └── DocumentResource/
+│                   └── Pages/
+│                       └── ViewDocument.php    # เพิ่ม email ใน approve/reject actions
+│
+└── resources/
+    └── views/
+        └── emails/
+            ├── layout.blade.php                # Base email layout (มี footer, company name)
+            ├── document-submitted.blade.php    # Template สำหรับ submitted email
+            ├── document-approved.blade.php     # Template สำหรับ approved email
+            ├── document-rejected.blade.php     # Template สำหรับ rejected email
+            └── document-recalled.blade.php     # Template สำหรับ recalled email
+
+
+การติดตั้ง:
+-----------
+1. คัดลอกไฟล์ทั้งหมดไปยัง project ตามโครงสร้างข้างต้น
+2. ตั้งค่า .env:
+   MAIL_MAILER=smtp
+   MAIL_HOST=smtp.gmail.com
+   MAIL_PORT=587
+   MAIL_USERNAME=your-email@gmail.com
+   MAIL_PASSWORD=your-app-password
+   MAIL_ENCRYPTION=tls
+   
+3. ตั้งค่า Queue (แนะนำ):
+   QUEUE_CONNECTION=database
+   php artisan queue:work
+
+4. ทดสอบส่ง email:
+   php artisan tinker
+   Mail::to('test@example.com')->send(new App\Mail\DocumentSubmitted(App\Models\Document::first()));
+
+
+การแก้ไข Email Template:
+-------------------------
+แก้ไฟล์ resources/views/emails/layout.blade.php:
+- เปลี่ยนสี: แก้ gradient ใน .header
+- เปลี่ยนชื่อบริษัท: แก้ <h1>Document Management System</h1>
+- เปลี่ยน footer: แก้ข้อความใน .footer
+- เพิ่มโลโก้: เพิ่ม <img> tag ใน .header
+
+
+Email Actions:
+--------------
+✉️  DocumentSubmitted  → ส่งถึง approver คนแรก เมื่อ creator submit เอกสาร
+✉️  DocumentApproved   → ส่งถึง approver คนถัดไป/creator เมื่อมีคนอนุมัติ
+✉️  DocumentRejected   → ส่งถึง creator เมื่อมีคนปฏิเสธ
+✉️  DocumentRecalled   → ส่งถึง pending approvers เมื่อ creator recall กลับ
