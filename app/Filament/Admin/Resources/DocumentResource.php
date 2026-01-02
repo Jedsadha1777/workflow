@@ -7,7 +7,6 @@ use App\Enums\DocumentStatus;
 use App\Filament\Admin\Resources\DocumentResource\Pages;
 use App\Models\Document;
 use App\Models\TemplateDocument;
-use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -350,6 +349,7 @@ window.runCalculations_' . $formId . ' = function() {
         return [
             'index' => Pages\ListDocuments::route('/'),
             'view' => Pages\ViewDocument::route('/{record}'),
+            'logs' => Pages\ViewLogs::route('/logs'),
         ];
     }
 }

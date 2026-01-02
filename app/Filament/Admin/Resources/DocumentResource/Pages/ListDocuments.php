@@ -13,7 +13,11 @@ class ListDocuments extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            // Actions\CreateAction::make(),
+            Actions\Action::make('view_all_logs')
+                ->label('View All Logs')
+                ->icon('heroicon-o-clipboard-document-list')
+                ->color('info')
+                ->url(fn() => static::getResource()::getUrl('logs')),
         ];
     }
 }

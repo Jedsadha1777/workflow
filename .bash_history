@@ -200,3 +200,5 @@ git add .
 git status
 git commit -m "add audit log to document"
 exit
+php artisan route:clear
+exit
