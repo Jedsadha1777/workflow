@@ -15,16 +15,16 @@ class EditDocument extends EditRecord
     {
         return [
             Actions\DeleteAction::make()
-                ->visible(fn () => $this->record->canBeEditedBy(auth()->user())),
+                ->visible(fn() => $this->record->canBeEditedBy(auth()->user())),
         ];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
 
-         \Log::info('=== mutateFormDataBeforeSave START ===');
+        \Log::info('=== mutateFormDataBeforeSave START ===');
 
-         
+
         // Parse form_data
         if (isset($data['form_data']) && is_string($data['form_data'])) {
             $parsed = json_decode($data['form_data'], true);
@@ -33,31 +33,25 @@ class EditDocument extends EditRecord
 
         // ใช้ template จาก record (เพราะ field ถูก disabled)
         if ($this->record && $this->record->template_document_id) {
-            $template = \App\Models\TemplateDocument::find($this->record->template_document_id);
-            
-            \Log::info('Template loaded', [
-                'template_id' => $this->record->template_document_id,
-                'has_scripts' => !!$template?->calculation_scripts,
-                'scripts' => $template?->calculation_scripts
-            ]);
+            $template = \App\Models\TemplateDocument::select([
+                'id',
+                'calculation_scripts'
+            ])->find($this->record->template_document_id);
 
 
             if ($template && $template->calculation_scripts) {
-                \Log::info('Before calculation', ['formData' => $data['form_data']]);
 
                 $data['form_data'] = CalculationService::executeCalculations(
-                    $data['form_data'], 
+                    $data['form_data'],
                     $template->calculation_scripts
                 );
 
-                \Log::info('After calculation', ['formData' => $data['form_data']]);
             }
         }
-        
+
         unset($data['content']);
 
-        \Log::info('=== mutateFormDataBeforeSave END ===', ['final_form_data' => $data['form_data']]);
-        
+
         return $data;
     }
 

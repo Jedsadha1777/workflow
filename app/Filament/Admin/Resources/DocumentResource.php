@@ -36,11 +36,11 @@ class DocumentResource extends Resource
                         if (!$record) {
                             return new HtmlString('');
                         }
-                        
+
                         $templateName = $record->template?->name ?? 'N/A';
                         $creatorName = $record->creator?->name ?? 'N/A';
                         $createdAt = $record->created_at?->format('d/m/Y H:i') ?? 'N/A';
-                        
+
                         return new HtmlString('
                             <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
@@ -65,7 +65,17 @@ class DocumentResource extends Resource
 
                 Forms\Components\Select::make('template_document_id')
                     ->label('Template')
-                    ->relationship('template', 'name', fn($query) => $query->where('is_active', true))
+                    ->options(function () {
+                        return \App\Models\TemplateDocument::where('status', \App\Enums\TemplateStatus::PUBLISHED)
+                            ->select('id', 'name', 'version')
+                            ->orderBy('name')
+                            ->orderBy('version', 'desc')
+                            ->get()
+                            ->mapWithKeys(function ($template) {
+                                $label = "{$template->name} (v{$template->version})";
+                                return [$template->id => $label];
+                            });
+                    })
                     ->required()
                     ->searchable()
                     ->preload()
@@ -210,24 +220,24 @@ window.runCalculations_' . $formId . ' = function() {
                                 Forms\Components\TextInput::make('step_order')
                                     ->label('Step')
                                     ->disabled()
-                                    ->default(fn ($get, $livewire) => count($livewire->data['approvers'] ?? []) + 1),
-                                
+                                    ->default(fn($get, $livewire) => count($livewire->data['approvers'] ?? []) + 1),
+
                                 Forms\Components\Select::make('approver_id')
                                     ->label('Approver')
                                     ->relationship('approver', 'name')
                                     ->required()
                                     ->searchable(),
-                                
+
                                 Forms\Components\Select::make('status')
                                     ->options(ApprovalStatus::class)
                                     ->required()
                                     ->default(ApprovalStatus::PENDING)
                                     ->live(),
-                                
+
                                 Forms\Components\DateTimePicker::make('approved_at')
                                     ->label('Date')
                                     ->helperText('Date for approval/rejection based on status'),
-                                
+
                                 Forms\Components\Textarea::make('comment')
                                     ->rows(2)
                                     ->columnSpanFull(),
@@ -245,7 +255,20 @@ window.runCalculations_' . $formId . ' = function() {
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn(Builder $query) => $query->select([
+                'documents.id',
+                'documents.title',
+                'documents.status',
+                'documents.creator_id',
+                'documents.department_id',
+                'documents.template_document_id',
+                'documents.current_step',
+                'documents.submitted_at',
+                'documents.created_at',
+                'documents.updated_at',
+            ]))
             ->columns([
+
                 Tables\Columns\TextColumn::make('title')->searchable(),
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Creator')
@@ -255,7 +278,7 @@ window.runCalculations_' . $formId . ' = function() {
                     ->searchable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn ($state) => $state->color()),
+                    ->color(fn($state) => $state->color()),
                 Tables\Columns\TextColumn::make('approval_progress')
                     ->label('Approval Progress')
                     ->html()
@@ -264,46 +287,46 @@ window.runCalculations_' . $formId . ' = function() {
                         if ($record->status === DocumentStatus::DRAFT) {
                             return '<span class="text-gray-500">Not submitted</span>';
                         }
-                        
+
                         if ($record->status === DocumentStatus::REJECTED) {
                             $rejectedApprover = $record->approvers()
                                 ->where('status', ApprovalStatus::REJECTED->value)
                                 ->first();
                             if ($rejectedApprover) {
-                                return '<span class="text-red-600">Rejected by: ' . 
-                                    htmlspecialchars($rejectedApprover->approver->name) . 
+                                return '<span class="text-red-600">Rejected by: ' .
+                                    htmlspecialchars($rejectedApprover->approver->name) .
                                     '</span>';
                             }
                             return '<span class="text-red-600">Rejected</span>';
                         }
-                        
+
                         $totalApprovers = $record->approvers()->count();
                         $approvedCount = $record->approvers()
                             ->where('status', ApprovalStatus::APPROVED->value)
                             ->count();
-                        
+
                         if ($totalApprovers === 0) {
                             return '<span class="text-gray-500">No approvers</span>';
                         }
-                        
+
                         $currentStep = $record->current_step ?? 1;
                         $currentApprover = $record->approvers()
                             ->where('step_order', $currentStep)
                             ->first();
-                        
+
                         $progress = '<div style="font-size: 12px;">';
                         $progress .= '<div style="margin-bottom: 4px;">';
                         $progress .= '<span style="font-weight: 600;">' . $approvedCount . '/' . $totalApprovers . ' approved</span>';
                         $progress .= '</div>';
-                        
+
                         if ($record->status === DocumentStatus::PENDING && $currentApprover) {
                             $progress .= '<div style="color: #d97706;">';
                             $progress .= '→ Waiting: ' . htmlspecialchars($currentApprover->approver->name);
                             $progress .= '</div>';
                         }
-                        
+
                         $progress .= '</div>';
-                        
+
                         return $progress;
                     }),
                 Tables\Columns\TextColumn::make('created_at')
@@ -347,10 +370,10 @@ window.runCalculations_' . $formId . ' = function() {
     public static function getPages(): array
     {
         return [
-             'logs' => Pages\ViewLogs::route('/logs'),
+            'logs' => Pages\ViewLogs::route('/logs'),
             'index' => Pages\ListDocuments::route('/'),
             'view' => Pages\ViewDocument::route('/{record}')
-           
+
         ];
     }
 }

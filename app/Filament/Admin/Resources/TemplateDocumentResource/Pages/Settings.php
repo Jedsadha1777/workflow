@@ -100,14 +100,21 @@ if/else, ternary, loops, arrays, objects, Math functions, string operations
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('save')
-                ->label('Save & Finish')
-                ->action('save'),
+
             
             Actions\Action::make('back')
                 ->label('Back to PDF Layout')
                 ->url(fn() => static::getResource()::getUrl('edit-pdf-layout', ['record' => $this->record]))
                 ->color('gray'),
+
+            Actions\Action::make('next')
+                ->label('Next: Setup Workflow')
+                ->icon('heroicon-o-arrow-right')
+                ->color('success')
+                ->action(function () {
+                    $this->save();
+                    $this->redirect(static::getResource()::getUrl('setup-workflow', ['record' => $this->record]));
+                }),
         ];
     }
 
@@ -126,6 +133,6 @@ if/else, ternary, loops, arrays, objects, Math functions, string operations
             ->title('Settings saved successfully')
             ->send();
 
-        $this->redirect(static::getResource()::getUrl('index'));
+        
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Admin\Resources;
 
+use App\Enums\TemplateStatus;
 use App\Filament\Admin\Resources\TemplateDocumentResource\Pages;
 use App\Models\TemplateDocument;
 use Filament\Forms;
@@ -11,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\HtmlString;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class TemplateDocumentResource extends Resource
 {
@@ -25,24 +27,37 @@ class TemplateDocumentResource extends Resource
     }
     public static function canEdit(Model $record): bool
     {
-        return true;
+        return $record->canEdit();
     }
     public static function canCreate(): bool
     {
         return true;
     }
-    public static function canDeleteAny(): bool
+    public static function canDelete(Model $record): bool
     {
-        return true;
+        return $record->canDelete();
     }
 
     public static function form(Form $form): Form
     {
         return $form->schema([
             Forms\Components\Section::make('Basic Information')->schema([
-                Forms\Components\TextInput::make('name')->required()->maxLength(255),
+                Forms\Components\TextInput::make('name')
+                    ->required()
+                    ->maxLength(255)
+                    ->disabled(fn($record) => $record && !$record->canEdit()),
                 Forms\Components\Toggle::make('is_active')->default(true),
-            ])->columns(2),
+                Forms\Components\TextInput::make('version')
+                    ->disabled()
+                    ->default(1)
+                    ->visible(fn($record) => $record !== null),
+
+                Forms\Components\Select::make('status')
+                    ->disabled()
+                    ->options(TemplateStatus::class)
+                    ->default(TemplateStatus::DRAFT)
+                    ->visible(fn($record) => $record !== null),
+            ])->columns(4),
 
             Forms\Components\Section::make('Upload Excel File')->schema([
                 Forms\Components\FileUpload::make('excel_file')
@@ -51,8 +66,9 @@ class TemplateDocumentResource extends Resource
                     ->disk('public')
                     ->directory('templates')
                     ->downloadable()
-                    ->required(),
-            ])->visible(fn($record) => $record === null),
+                    ->required(fn($record) => $record === null)
+                    ->disabled(fn($record) => $record && !$record->canEdit()),
+            ])->visible(fn($record) => $record === null || $record->canEdit()),
 
             Forms\Components\Section::make('Template Editor')->schema([
                 Forms\Components\Placeholder::make('luckysheet_editor')
@@ -173,32 +189,86 @@ HTML
                     ->label('Template Content (JSON)')
                     ->dehydrated(true)
                     ->default(''),
-            ])->visible(fn($record) => $record !== null),
+            ])->visible(fn($record) => $record !== null && $record->canEdit()),
+
         ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn(Builder $query) => $query->select([
+                'id',
+                'name',
+                'version',
+                'status',
+                'is_active',
+                'created_at',
+                'updated_at',
+            ]))
             ->columns([
-                Tables\Columns\TextColumn::make('name')->searchable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean(),
-                Tables\Columns\TextColumn::make('created_at')->dateTime(),
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('version')
+                    ->sortable()
+                    ->badge()
+                    ->color('gray'),
+
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->color(fn($state) => $state->color())
+                    ->icon(fn($state) => $state->icon())
+                    ->sortable(),
+
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable(),
             ])
+
+
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-            ]);
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+
+                    Tables\Actions\EditAction::make()
+                        ->visible(fn($record) => $record->canEdit()),
+
+
+
+                    Tables\Actions\DeleteAction::make()
+                        ->visible(fn($record) => $record->canDelete()),
+                ]),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->before(function ($records) {
+                            foreach ($records as $record) {
+                                if (!$record->canDelete()) {
+                                    throw new \Exception("Cannot delete {$record->name} v{$record->version} (status: {$record->status->label()})");
+                                }
+                            }
+                        }),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc');
     }
+
+
 
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListTemplateDocuments::route('/'),
             'create' => Pages\CreateTemplateDocument::route('/create'),
+            'view' => Pages\ViewTemplateDocument::route('/{record}'),
             'edit' => Pages\EditTemplateDocument::route('/{record}/edit'),
             'edit-pdf-layout' => Pages\EditPdfLayout::route('/{record}/edit-pdf-layout'),
             'settings' => Pages\Settings::route('/{record}/settings'),
+            'setup-workflow' => Pages\SetupWorkflow::route('/{record}/setup-workflow'),
         ];
     }
 }

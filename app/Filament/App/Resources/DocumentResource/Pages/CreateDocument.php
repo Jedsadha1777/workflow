@@ -15,49 +15,47 @@ class CreateDocument extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         \Log::info('=== mutateFormDataBeforeCreate START ===');
-        
+
         $data['creator_id'] = auth()->id();
         $data['department_id'] = auth()->user()->department_id;
         $data['status'] = DocumentStatus::DRAFT;
-        
+
         if (isset($data['template_document_id'])) {
-            $template = \App\Models\TemplateDocument::find($data['template_document_id']);
-            \Log::info('Template loaded', [
-                'template_id' => $data['template_document_id'],
-                'has_content' => !!$template?->content,
-                'has_scripts' => !!$template?->calculation_scripts,
-                'scripts' => $template?->calculation_scripts
-            ]);
+            $template = \App\Models\TemplateDocument::select([
+                'id',
+                'content',
+                'calculation_scripts'
+            ])->find($data['template_document_id']);
+
             
+
             if ($template && $template->content) {
                 $data['content'] = $template->content;
             }
-            
+
             if ($template && $template->calculation_scripts) {
-                $formData = isset($data['form_data']) && is_string($data['form_data']) 
-                    ? json_decode($data['form_data'], true) 
+                $formData = isset($data['form_data']) && is_string($data['form_data'])
+                    ? json_decode($data['form_data'], true)
                     : ($data['form_data'] ?? []);
-                
-                \Log::info('Before calculation', ['formData' => $formData]);
-                
+
+
                 $data['form_data'] = CalculationService::executeCalculations(
-                    $formData, 
+                    $formData,
                     $template->calculation_scripts
                 );
-                
+
                 \Log::info('After calculation', ['formData' => $data['form_data']]);
             }
         }
-        
+
         if (isset($data['form_data']) && is_string($data['form_data'])) {
             $parsed = json_decode($data['form_data'], true);
             $data['form_data'] = $parsed ?: [];
         } else if (!isset($data['form_data'])) {
             $data['form_data'] = [];
         }
-        
-        \Log::info('=== mutateFormDataBeforeCreate END ===', ['final_form_data' => $data['form_data']]);
-        
+
+
         return $data;
     }
 

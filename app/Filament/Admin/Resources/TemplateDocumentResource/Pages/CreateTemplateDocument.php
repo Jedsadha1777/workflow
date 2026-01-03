@@ -9,6 +9,15 @@ class CreateTemplateDocument extends CreateRecord
 {
     protected static string $resource = TemplateDocumentResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['version'] = 1;
+        $data['status'] = \App\Enums\TemplateStatus::DRAFT;
+        $data['is_active'] = true;
+        
+        return $data;
+    }
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('edit', ['record' => $this->record]);

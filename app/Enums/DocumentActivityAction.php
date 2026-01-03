@@ -10,6 +10,7 @@ enum DocumentActivityAction: string
     case APPROVED = 'approved';
     case REJECTED = 'rejected';
     case RECALLED = 'recalled';
+    case DELETED = 'deleted';
 
     public function label(): string
     {
@@ -20,6 +21,7 @@ enum DocumentActivityAction: string
             self::APPROVED => 'Approved',
             self::REJECTED => 'Rejected',
             self::RECALLED => 'Recalled',
+            self::DELETED => 'Deleted',
         };
     }
 
@@ -32,6 +34,7 @@ enum DocumentActivityAction: string
             self::APPROVED => 'heroicon-o-check-circle',
             self::REJECTED => 'heroicon-o-x-circle',
             self::RECALLED => 'heroicon-o-arrow-uturn-left',
+            self::DELETED => 'heroicon-o-trash',
         };
     }
 
@@ -44,6 +47,7 @@ enum DocumentActivityAction: string
             self::APPROVED => 'success',
             self::REJECTED => 'danger',
             self::RECALLED => 'warning',
+            self::DELETED => 'danger',
         };
     }
 }

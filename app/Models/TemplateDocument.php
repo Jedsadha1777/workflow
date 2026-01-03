@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use App\Enums\TemplateStatus;
 use App\Services\TemplateFieldParser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class TemplateDocument extends Model
 {
     protected $fillable = [
         'name',
+        'version',
+        'status',
+        'parent_id',
         'excel_file',
         'pdf_layout_html',
         'pdf_orientation',
@@ -21,11 +26,9 @@ class TemplateDocument extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'status' => TemplateStatus::class,
     ];
 
-    /**
-     * Accessor สำหรับ content (จัดการ JSON ซ้อน 2 ชั้น)
-     */
     protected function content(): Attribute
     {
         return Attribute::make(
@@ -33,22 +36,20 @@ class TemplateDocument extends Model
                 if (!is_string($value)) {
                     return $value;
                 }
-                
-                // Decode ครั้งที่ 1
+
                 $decoded = json_decode($value, true);
-                
-                // ถ้าได้ string → decode อีกครั้ง
+
                 if (is_string($decoded)) {
                     $decoded = json_decode($decoded, true);
                 }
-                
+
                 if (is_array($decoded)) {
                     return $decoded;
                 }
-                
+
                 return $value;
             },
-            set: fn ($value) => is_array($value) ? json_encode($value) : $value,
+            set: fn($value) => is_array($value) ? json_encode($value) : $value,
         );
     }
 
@@ -57,10 +58,128 @@ class TemplateDocument extends Model
         return $this->hasMany(Document::class, 'template_document_id');
     }
 
-    /**
-     * ดึง form fields ทั้งหมด
-     * Service รับผิดชอบ parse เอง Model แค่ส่งข้อมูล
-     */
+    public function workflows(): HasMany
+    {
+        return $this->hasMany(TemplateWorkflow::class)->orderBy('step_order');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(TemplateDocument::class, 'parent_id');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(TemplateDocument::class, 'parent_id');
+    }
+
+    public function canEdit(): bool
+    {
+        return $this->status === TemplateStatus::DRAFT;
+    }
+
+    public function canDelete(): bool
+    {
+        return $this->status === TemplateStatus::DRAFT;
+    }
+
+    public function canPublish(): bool
+    {
+        return $this->status === TemplateStatus::DRAFT
+            && $this->workflows()->exists();
+    }
+
+    public function publish(): void
+    {
+        if (!$this->canPublish()) {
+            throw new \Exception('Cannot publish this template');
+        }
+
+        \DB::transaction(function () {
+            if ($this->parent_id) {
+                TemplateDocument::where('id', $this->parent_id)
+                    ->update(['status' => TemplateStatus::ARCHIVED]);
+            }
+
+            $this->update(['status' => TemplateStatus::PUBLISHED]);
+        });
+    }
+
+    public function archive(): void
+    {
+        if ($this->status !== TemplateStatus::PUBLISHED) {
+            throw new \Exception('Only published templates can be archived');
+        }
+
+        $this->update(['status' => TemplateStatus::ARCHIVED]);
+    }
+
+    public function createNewVersion(): self
+    {
+        if ($this->status === TemplateStatus::DRAFT) {
+            throw new \Exception('Cannot create version from draft template');
+        }
+
+        return \DB::transaction(function () {
+            $newVersion = $this->replicate([
+                'version',
+                'status',
+                'parent_id',
+            ]);
+
+            $newVersion->version = $this->version + 1;
+            $newVersion->status = TemplateStatus::DRAFT;
+            $newVersion->parent_id = $this->id;
+            $newVersion->save();
+
+            foreach ($this->workflows as $workflow) {
+                $newWorkflow = $workflow->replicate();
+                $newWorkflow->template_document_id = $newVersion->id;
+                $newWorkflow->save();
+            }
+
+            return $newVersion;
+        });
+    }
+
+    public function validateForDepartments(): array
+    {
+        $departments = \App\Models\Department::all();
+        $warnings = [];
+
+        foreach ($departments as $dept) {
+            foreach ($this->workflows as $workflow) {
+                $roleLabel = $workflow->required_role ? $workflow->required_role->label() : 'Unknown Role';
+
+                if ($workflow->same_department) {
+                    $roleValue = $workflow->required_role ? $workflow->required_role->value : null;
+                    if (!$roleValue) continue;
+
+                    $count = \App\Models\User::where('role', $roleValue)
+                        ->where('department_id', $dept->id)
+                        ->count();
+
+                    if ($count === 0) {
+                        $warnings[] = "{$dept->name} has no {$roleLabel}";
+                    } elseif ($count > 1) {
+                        $warnings[] = "{$dept->name} has {$count} {$roleLabel}s";
+                    }
+                } else {
+                    $roleValue = $workflow->required_role ? $workflow->required_role->value : null;
+                    if (!$roleValue) continue;
+
+                    $count = \App\Models\User::where('role', $roleValue)->count();
+                    if ($count === 0) {
+                        $warnings[] = "Company has no {$roleLabel}";
+                    }
+                }
+            }
+        }
+
+        return $warnings;
+    }
+
+
     public function getFormFields(): array
     {
         $parser = app(TemplateFieldParser::class);
@@ -69,35 +188,34 @@ class TemplateDocument extends Model
         return $parser->parseAllSheets($sheets);
     }
 
-    /**
-     * ดึงเฉพาะ signature fields
-     */
     public function getSignatureFields(): array
     {
         $parser = app(TemplateFieldParser::class);
         return $parser->filterByType($this->getFormFields(), 'signature');
     }
 
-    /**
-     * ดึงเฉพาะ date fields
-     */
     public function getDateFields(): array
     {
         $parser = app(TemplateFieldParser::class);
         return $parser->filterByType($this->getFormFields(), 'date');
     }
 
-    /**
-     * ดึง fields ตาม type
-     */
     public function getFieldsByType(string $type): array
     {
         $parser = app(TemplateFieldParser::class);
-        
+
         if (!$parser->isValidType($type)) {
             return [];
         }
 
         return $parser->filterByType($this->getFormFields(), $type);
+    }
+
+    public static function getLatestPublished(string $name)
+    {
+        return self::where('name', $name)
+            ->where('status', TemplateStatus::PUBLISHED)
+            ->orderBy('version', 'desc')
+            ->first();
     }
 }

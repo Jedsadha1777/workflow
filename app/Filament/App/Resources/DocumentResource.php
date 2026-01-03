@@ -5,6 +5,7 @@ namespace App\Filament\App\Resources;
 use App\Enums\DocumentActivityAction;
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
+use App\Enums\TemplateStatus;
 use App\Filament\App\Resources\DocumentResource\Pages;
 use App\Mail\DocumentRecalled;
 use App\Mail\DocumentSubmitted;
@@ -33,7 +34,17 @@ class DocumentResource extends Resource
             ->schema([
                 Forms\Components\Select::make('template_document_id')
                     ->label('Template')
-                    ->relationship('template', 'name', fn($query) => $query->where('is_active', true))
+                    ->options(function () {
+                        return TemplateDocument::where('status', TemplateStatus::PUBLISHED)
+                            ->select(['id', 'name', 'version'])
+                            ->orderBy('name')
+                            ->orderBy('version', 'desc')
+                            ->get()
+                            ->mapWithKeys(function ($template) {
+                                $label = "{$template->name} (v{$template->version})";
+                                return [$template->id => $label];
+                            });
+                    })
                     ->required()
                     ->searchable()
                     ->preload()
@@ -41,7 +52,8 @@ class DocumentResource extends Resource
                     ->afterStateUpdated(function ($state, Forms\Set $set) {
                         $set('form_data', '{}');
                     })
-                    ->disabled(fn($record) => $record !== null),
+                    ->disabled(fn($record) => $record !== null)
+                    ->helperText('Only published templates are shown'),
 
                 Forms\Components\TextInput::make('title')
                     ->required()
@@ -57,7 +69,12 @@ class DocumentResource extends Resource
                             return new HtmlString('<p class="text-sm text-gray-500">Please select a template first</p>');
                         }
 
-                        $template = TemplateDocument::find($templateId);
+                        $template = TemplateDocument::select([
+                            'id',
+                            'content',
+                            'calculation_scripts'
+                        ])->find($templateId);
+
                         if (!$template || !$template->content) {
                             return new HtmlString('<p class="text-sm text-red-500">Template not found</p>');
                         }
@@ -273,8 +290,8 @@ window.runCalculations_' . $formId . ' = function() {
                             ->send();
                     })
                     ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id() && $record->approvers()->count() > 0),
-           
-                    
+
+
                 Tables\Actions\Action::make('recall')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
@@ -284,7 +301,7 @@ window.runCalculations_' . $formId . ' = function() {
                     ->modalSubmitActionLabel('Yes, Recall')
                     ->action(function (Document $record) {
 
-                         $pendingApprovers = $record->approvers()
+                        $pendingApprovers = $record->approvers()
                             ->where('status', \App\Enums\ApprovalStatus::PENDING)
                             ->get();
 
@@ -302,7 +319,7 @@ window.runCalculations_' . $formId . ' = function() {
                                     ->queue(new DocumentRecalled($record));
                             }
                         }
-                        
+
                         \Filament\Notifications\Notification::make()
                             ->success()
                             ->title('Document Recalled')
@@ -310,6 +327,16 @@ window.runCalculations_' . $formId . ' = function() {
                             ->send();
                     })
                     ->visible(fn($record) => $record->canBeRecalledBy(auth()->user())),
+
+                Tables\Actions\DeleteAction::make()
+                    ->before(function (Document $record) {
+                        DocumentActivityLog::log($record, DocumentActivityAction::DELETED, null, [
+                            'status' => $record->status->value,
+                            'title' => $record->title,
+                        ]);
+                    })
+                    ->visible(fn($record) => $record->status === DocumentStatus::DRAFT && $record->creator_id === auth()->id()),
+
             ]);
     }
 

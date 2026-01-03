@@ -13,10 +13,14 @@ class DocumentApprover extends Model
 
     protected $fillable = [
         'document_id',
+        'step_order',
+        'required_role',
+        'same_department',
         'approver_id',
+        'approver_name',
+        'approver_email',
         'signature_cell',
         'approved_date_cell',
-        'step_order',
         'status',
         'comment',
         'approved_at',
@@ -27,6 +31,7 @@ class DocumentApprover extends Model
     {
         return [
             'status' => ApprovalStatus::class,
+            'same_department' => 'boolean',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
         ];
@@ -51,7 +56,6 @@ class DocumentApprover extends Model
         return $this->approver_id === $user->id && $this->status === ApprovalStatus::PENDING;
     }
 
-    // บันทึก signature เมื่อ approve
     public function approveWithSignature(): void
     {
         $this->update([
@@ -59,18 +63,25 @@ class DocumentApprover extends Model
             'approved_at' => now(),
         ]);
 
-        // บันทึก signature ลง form_data ถ้ามี signature_cell
         if ($this->signature_cell) {
             [$sheet, $cell] = $this->parseSignatureCell();
-            
+
             if ($sheet && $cell) {
                 $this->document->setSignature($sheet, $cell, $this->approver_id);
                 $this->document->save();
             }
         }
+
+        if ($this->approved_date_cell) {
+            [$sheet, $cell] = $this->parseDateCell();
+
+            if ($sheet && $cell) {
+                $this->document->setApprovedDate($sheet, $cell);
+                $this->document->save();
+            }
+        }
     }
 
-    // แปลง signature_cell จาก "Sheet1:A5" เป็น ['Sheet1', 'A5']
     protected function parseSignatureCell(): array
     {
         if (!$this->signature_cell || !str_contains($this->signature_cell, ':')) {
@@ -78,5 +89,24 @@ class DocumentApprover extends Model
         }
 
         return explode(':', $this->signature_cell, 2);
+    }
+
+    protected function parseDateCell(): array
+    {
+        if (!$this->approved_date_cell || !str_contains($this->approved_date_cell, ':')) {
+            return [null, null];
+        }
+
+        return explode(':', $this->approved_date_cell, 2);
+    }
+
+    public function getApproverDisplay(): string
+    {
+        return $this->approver_name ?? 'N/A';
+    }
+
+    public function getApproverEmailDisplay(): string
+    {
+        return $this->approver_email ?? 'N/A';
     }
 }

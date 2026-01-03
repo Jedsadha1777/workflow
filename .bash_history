@@ -228,3 +228,26 @@ php artisan filament:cache-components
 php artisan filament:cache-components
 php artisan optimize:clear
 exit
+php artisan make:migration "add_versioning_to_template_documents"
+php artisan make:migration "create_template_workflows_table"
+php artisan make:migration "add_snapshot_to_document_approvers"
+php artisan migrate
+php artisan migrate
+php artisan migrate
+clear
+php artisan migrate
+php artisan migrate:rollback
+php artisan migrate
+php artisan migrate
+clear
+php artisan migrate
+clear
+php artisan migrate
+clear
+php artisan migrate
+php artisan optimze:clear
+php artisan optimze:clear
+php artian optimize:clear
+php artisan optimize:clear
+php artisan filament:cache-components
+exit
