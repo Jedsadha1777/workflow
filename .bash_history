@@ -209,3 +209,17 @@ php artisan optimize:clear
 php artisan route:list --name=filament.admin.resources.documents
 php artisan view:clear
 exit
+php artisan migrate
+php artisan optimize:clear
+php artisan filament:cache-components
+php artisan optimize:clear
+php artisan filament:cache-components
+ls -la app/Filament/Admin/Resources/DocumentResource/Pages/ViewLogs.php
+ls -la resources/views/filament/admin/resources/document-resource/pages/view-logs.blade.php
+php artisan route:list | grep "documents/logs"
+php artisan optimize:clear
+php artisan filament:cache-components
+php artisan config:clear
+php artisan route:clear
+grep -n "spa()" app/Providers/Filament/AdminPanelProvider.php
+exit

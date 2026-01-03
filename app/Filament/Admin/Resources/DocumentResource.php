@@ -347,9 +347,10 @@ window.runCalculations_' . $formId . ' = function() {
     public static function getPages(): array
     {
         return [
+             'logs' => Pages\ViewLogs::route('/logs'),
             'index' => Pages\ListDocuments::route('/'),
-            'view' => Pages\ViewDocument::route('/{record}'),
-            'logs' => Pages\ViewLogs::route('/logs'),
+            'view' => Pages\ViewDocument::route('/{record}')
+           
         ];
     }
 }
