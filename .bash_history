@@ -223,3 +223,8 @@ php artisan config:clear
 php artisan route:clear
 grep -n "spa()" app/Providers/Filament/AdminPanelProvider.php
 exit
+php artisan optimize:clear
+php artisan filament:cache-components
+php artisan filament:cache-components
+php artisan optimize:clear
+exit
