@@ -155,10 +155,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const table = wrapper.querySelector('table');
         
         if (table) {
-
-            const paddingParent = wrapper.parentElement;
-            const overflowParent = paddingParent ? paddingParent.parentElement : null;
-
             // Reset to measure natural size
             wrapper.style.transform = 'scale(1)';
             wrapper.style.width = 'auto';
@@ -177,34 +173,41 @@ document.addEventListener('DOMContentLoaded', function() {
             wrapper.style.height = naturalHeight + 'px';
             
             // Update parent (padding container) size
-            if (paddingParent && overflowParent) {
+            const paddingParent = wrapper.parentElement;
+            if (paddingParent) {
                 const padding = 16; // padding: 16px
                 const scaledWidth = naturalWidth * scale + padding * 2;
                 const scaledHeight = naturalHeight * scale + padding * 2;
-                const parentWidth = overflowParent.clientWidth;
                 
-                // เช็คแค่ width อย่างเดียว
-                if (scaledWidth > parentWidth) {
-                    // ใหญ่กว่า → เปิด overflow auto + ตั้งขนาดให้พอดี
-                    overflowParent.style.overflow = 'auto';
-                    paddingParent.style.width = scaledWidth + 'px';
-                    paddingParent.style.height = scaledHeight + 'px';
-                } else {
-                    // เล็กกว่า → ปิด overflow + ตั้งขนาดพอดี
-                    overflowParent.style.overflow = 'visible';
-                    paddingParent.style.width = scaledWidth + 'px';
-                    paddingParent.style.height = scaledHeight + 'px';
-                 }
-             }
-             
-             table.style.width = '';
-             table.style.minWidth = '';
-         }
-         
-         if (levelDisplay) {
-             levelDisplay.textContent = Math.round(scale * 100) + '%';
-         }
-     }
+                // เช็คว่ากล่องข้างในใหญ่กว่า parent หรือไม่
+                const overflowParent = paddingParent.parentElement;
+                if (overflowParent) {
+                    const parentWidth = overflowParent.clientWidth;
+                    const parentHeight = overflowParent.clientHeight;
+                    
+                    // เช็คว่าเนื้อหาใหญ่กว่ากรอบหรือไม่
+                    if (scaledWidth > parentWidth || scaledHeight > parentHeight) {
+                        // ใหญ่กว่า → เปิด overflow auto
+                        overflowParent.style.overflow = 'auto';
+                        paddingParent.style.width = '';
+                        paddingParent.style.height = '';
+                    } else {
+                        // เล็กกว่า → ปิด overflow, ตั้งขนาดพอดี
+                        overflowParent.style.overflow = 'visible';
+                        paddingParent.style.width = scaledWidth + 'px';
+                        paddingParent.style.height = scaledHeight + 'px';
+                    }
+                }
+            }
+            
+            table.style.width = '';
+            table.style.minWidth = '';
+        }
+        
+        if (levelDisplay) {
+            levelDisplay.textContent = Math.round(scale * 100) + '%';
+        }
+    }
     
     document.querySelectorAll('.zoom-controls').forEach(controls => {
         const sheetId = controls.dataset.sheetId;
@@ -233,9 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-       setTimeout(() => {
-            updateZoom(wrapper, 1.0, levelDisplay);
-       }, 100);
+        updateZoom(wrapper, 1.0, levelDisplay);
     });
 });
 </script>

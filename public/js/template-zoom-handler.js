@@ -80,7 +80,7 @@
             
             setTimeout(() => {
                 updateZoom(sheetId, 1.0);
-            }, 50);
+            }, 100);
         });
     }
     

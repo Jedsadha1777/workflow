@@ -10,6 +10,9 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Assets\Css;
+use Filament\Support\Assets\Js;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -58,5 +61,17 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                  \App\Http\Middleware\FilamentAuthenticate::class,
             ])->spa();
+    }
+
+    public function register(): void
+    {
+        parent::register();
+
+        FilamentAsset::register([
+            Css::make('custom-filament', asset('css/custom.css')),
+            Js::make('form-field-renderer', asset('js/form-field-renderer.js')),
+            Js::make('template-form-handler', asset('js/template-form-handler.js')),
+            Js::make('template-zoom-handler', asset('js/template-zoom-handler.js')),
+        ], package: 'admin');
     }
 }

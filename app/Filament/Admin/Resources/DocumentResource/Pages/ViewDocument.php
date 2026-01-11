@@ -55,36 +55,46 @@ class ViewDocument extends ViewRecord
                             ->dateTime('d/m/Y H:i')
                             ->visible(fn($record) => $record->rejected_at !== null),
                         Infolists\Components\TextEntry::make('comment')
-                            ->visible(fn ($record) => !empty($record->comment)),
+                            ->visible(fn($record) => !empty($record->comment)),
                     ])
+                    ->columnSpanFull(),
+                Infolists\Components\Section::make('Activity Timeline')
+                    ->schema([
+                        Infolists\Components\RepeatableEntry::make('activityLogs')
+                            ->label('')
+                            ->state(fn($record) => $record->activityLogs)
+                            ->schema([
+                                Infolists\Components\TextEntry::make('action')
+                                    ->badge()
+                                    ->color(fn($state) => $state->color())
+                                    ->icon(fn($state) => $state->icon()),
+                                Infolists\Components\TextEntry::make('actor_name')->label('By'),
+                                Infolists\Components\TextEntry::make('performed_at')->dateTime('d/m/Y H:i')->label('When'),
+                                Infolists\Components\TextEntry::make('comment')->visible(fn($record) => !empty($record->comment)),
+                            ])
+                            ->columns(4)
+                    ])
+                    ->collapsible()
+                    ->collapsed()
                     ->columnSpanFull(),
             ]);
     }
 
     protected function getHeaderActions(): array
     {
-        $actions = [];
-
-        $actions[] = Actions\Action::make('export_pdf')
-            ->label('Export PDF')
-            ->icon('heroicon-o-arrow-down-tray')
-            ->color('primary')
-            ->url(fn() => route('documents.export-pdf', ['document' => $this->record]))
-            ->openUrlInNewTab();
-
-        $actions[] = Actions\Action::make('export_excel')
-            ->label('Export Excel')
-            ->icon('heroicon-o-table-cells')
-            ->color('success')
-            ->url(fn() => route('documents.export-excel', ['document' => $this->record]))
-            ->openUrlInNewTab();
-
-        $actions[] = Actions\Action::make('back')
-            ->label('Return to List')
-            ->icon('heroicon-o-arrow-left')
-            ->color('gray')
-            ->url($this->getResource()::getUrl('index'));
-
-        return $actions;
+        return [
+            Actions\Action::make('export_pdf')
+                ->label('Export PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('primary')
+                ->url(fn() => route('admin.documents.export-pdf', ['document' => $this->record]))
+                ->openUrlInNewTab(),
+            Actions\Action::make('export_excel')
+                ->label('Export Excel')
+                ->icon('heroicon-o-table-cells')
+                ->color('success')
+                ->url(fn() => route('admin.documents.export-excel', ['document' => $this->record]))
+                ->openUrlInNewTab(),
+        ];
     }
 }

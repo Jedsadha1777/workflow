@@ -51,6 +51,14 @@ class EditPdfLayout extends Page
     protected function getHeaderActions(): array
     {
         return [
+
+             Actions\Action::make('back')
+                ->label('Back to Edit')
+                ->icon('heroicon-o-arrow-left')
+                ->url(fn() => static::getResource()::getUrl('edit', ['record' => $this->record]))
+                ->color('gray'),
+
+
             Actions\Action::make('save')
                 ->label('Save PDF Layout')
                 ->action('save'),
@@ -61,10 +69,7 @@ class EditPdfLayout extends Page
                 ->color('success')
                 ->url(fn() => static::getResource()::getUrl('settings', ['record' => $this->record])),
             
-            Actions\Action::make('back')
-                ->label('Back to Edit')
-                ->url(fn() => static::getResource()::getUrl('edit', ['record' => $this->record]))
-                ->color('gray'),
+           
         ];
     }
 

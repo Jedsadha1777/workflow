@@ -49,8 +49,9 @@ class DocumentResource extends Resource
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                   ->afterStateUpdated(function ($state, Forms\Set $set, $livewire) {
                         $set('form_data', '{}');
+                        $livewire->dispatch('template-changed');
                     })
                     ->disabled(fn($record) => $record !== null)
                     ->helperText('Only published templates are shown'),
@@ -144,7 +145,7 @@ window.runCalculations_' . $formId . ' = function() {
 </script>';
                         }
 
-                        $html .= '<div id="' . $formId . '" wire:ignore x-data="templateFormHandler(\''
+                        $html .= '<div id="' . $formId . '"  x-data="templateFormHandler(\''
                             . $formId . '\', '
                             . htmlspecialchars(json_encode($existingFormData), ENT_QUOTES)
                             . ')" x-cloak>';

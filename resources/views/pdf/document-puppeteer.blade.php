@@ -48,22 +48,6 @@
             }
             
             @if($orientation === 'fit')
-            /* ปิด page break ทั้งหมดใน fit mode */
-            *, *::before, *::after {
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
-                break-before: avoid !important;
-                break-after: avoid !important;
-                break-inside: avoid !important;
-            }
-            
-            html, body {
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
-            }
-            
             /* ซ่อน CSS text ตอน print */
             body > :not(table):not(div) {
                 display: none !important;
@@ -74,7 +58,7 @@
         body {
             font-family: Arial, sans-serif;
             @if($orientation === 'fit')
-            padding: 10px;
+            padding: 0;
             margin: 0;
             @else
             padding: 20px;
@@ -94,7 +78,7 @@
 </head>
 <body>
     @foreach($sheets as $sheet)
-        @if($loop->index > 0 && $orientation !== 'fit')
+        @if($loop->index > 0)
         <div style="page-break-before: always;"></div>
         @endif
         {!! $sheet['html'] !!}

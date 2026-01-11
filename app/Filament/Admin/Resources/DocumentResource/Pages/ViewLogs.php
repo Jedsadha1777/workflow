@@ -29,12 +29,12 @@ class ViewLogs extends Page implements HasTable
                     ->badge()
                     ->color(fn($state) => $state->color())
                     ->icon(fn($state) => $state->icon())
-                    ->label('Action')
-                    ->sortable(),
+                    ->label('Action'),
+                   
                 Tables\Columns\TextColumn::make('actor_name')
                     ->label('Performed By')
-                    ->searchable()
-                    ->sortable(),
+                    ->searchable(),
+                  
                 Tables\Columns\TextColumn::make('actor_role')
                     ->label('Role')
                     ->badge()
@@ -45,8 +45,8 @@ class ViewLogs extends Page implements HasTable
                     ->url(fn($record) => $record->document 
                         ? DocumentResource::getUrl('view', ['record' => $record->document_id])
                         : null)
-                    ->color('primary')
-                    ->sortable(),
+                    ->color('primary'),
+                  
                 Tables\Columns\TextColumn::make('old_status')
                     ->label('From')
                     ->badge()
@@ -67,8 +67,8 @@ class ViewLogs extends Page implements HasTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('performed_at')
                     ->label('Date & Time')
-                    ->dateTime('d/m/Y H:i:s')
-                    ->sortable(),
+                    ->dateTime('d/m/Y H:i:s'),
+                   
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('action')
@@ -79,6 +79,7 @@ class ViewLogs extends Page implements HasTable
                         'approved' => 'Approved',
                         'rejected' => 'Rejected',
                         'recalled' => 'Recalled',
+                        'deleted'   => 'Deleted',
                     ]),
                 Tables\Filters\SelectFilter::make('actor_id')
                     ->label('User')

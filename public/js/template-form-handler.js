@@ -6,19 +6,47 @@ window.templateFormHandler = function(formId, existingData) {
         formData: {},
         
         init() {
-            if (this.initialized) {
-                console.log('Already initialized, skipping...');
-                return;
-            }
-            
             console.log('Alpine init for:', this.formId);
             console.log('Existing data:', this.existingData);
             
             this.$nextTick(() => {
+                this.loadCalculationScript();
                 this.renderFields();
                 this.setupEventListeners();
                 this.setupCalculationFunctions();
             });
+        },
+        
+        loadCalculationScript() {
+            const scriptId = 'calc-script-' + this.formId;
+            const existingScript = document.getElementById(scriptId);
+            
+            if (existingScript && existingScript.textContent) {
+                const scriptCode = existingScript.textContent.trim();
+                
+                if (scriptCode) {
+                    console.log('Loading calculation script via dynamic element...');
+                    
+                    const newScript = document.createElement('script');
+                    newScript.textContent = scriptCode;
+                    newScript.id = scriptId + '-dynamic';
+                    
+                    document.head.appendChild(newScript);
+                    
+                    console.log('✓ Calculation script loaded');
+                    
+                    const funcName = 'runCalculations_' + this.formId;
+                    if (typeof window[funcName] === 'function') {
+                        console.log('✓ Function', funcName, 'is now available');
+                    } else {
+                        console.error('✗ Function', funcName, 'not found after loading script');
+                    }
+                } else {
+                    console.warn('Script element found but empty');
+                }
+            } else {
+                console.warn('No calculation script found for:', scriptId);
+            }
         },
         
         setupCalculationFunctions() {
@@ -51,7 +79,6 @@ window.templateFormHandler = function(formId, existingData) {
                 const field = td.querySelector('input, select, textarea');
                 
                 if (field) {
-                    // มี input field
                     if (field.type === 'checkbox') {
                         field.checked = !!value;
                     } else {
@@ -59,8 +86,6 @@ window.templateFormHandler = function(formId, existingData) {
                     }
                     field.dispatchEvent(new Event('change', { bubbles: true }));
                 } else {
-                    // ไม่มี input field → แสดงเป็นข้อความใน td
-                    // ใช้ innerHTML เพื่อบังคับทับ #VALUE!
                     td.innerHTML = '<strong style="color: #059669;">' + value + '</strong>';
                 }
             };
@@ -92,7 +117,6 @@ window.templateFormHandler = function(formId, existingData) {
                         content.setAttribute('data-processed', 'true');
                         console.log('✓ Rendered template content');
                         
-                        // ลบ #VALUE!, #DIV/0!, #REF! ออกจาก cells ทั้งหมด
                         content.querySelectorAll('td[data-cell]').forEach(td => {
                             const text = td.textContent.trim();
                             if (text === '#VALUE!' || text === '#DIV/0!' || text === '#REF!' || text === '#N/A' || text === '#NAME?') {
@@ -115,7 +139,9 @@ window.templateFormHandler = function(formId, existingData) {
                     this.initialized = true;
                     console.log('Template initialized');
                     
-                    this.runCalculations();
+                    if (this.existingData && Object.keys(this.existingData).length > 0) {
+                        this.runCalculations();
+                    }
                 });
             };
             
@@ -177,21 +203,18 @@ window.templateFormHandler = function(formId, existingData) {
             container.addEventListener('change', (e) => {
                 if (!e.target.matches('input, select, textarea')) return;
                 
-                e.stopPropagation();
                 this.collectFormData();
                 this.runCalculations();
             }, true);
             
             container.addEventListener('input', (e) => {
                 if (!e.target.matches('input, textarea')) return;
-                e.stopPropagation();
             }, true);
         },
         
         collectFormData() {
             const container = this.$el;
             const data = {};
-
             
             container.querySelectorAll('input, select, textarea').forEach(field => {
                 const cellRef = field.closest('td')?.getAttribute('data-cell') || field.getAttribute('data-cell');
@@ -205,8 +228,10 @@ window.templateFormHandler = function(formId, existingData) {
             });
             
             this.formData = data;
-            this.$wire.set('data.form_data', JSON.stringify(data), false);
-
+            
+            if (this.$wire) {
+                this.$wire.set('data.form_data', JSON.stringify(data), false);
+            }
         }
     };
 };

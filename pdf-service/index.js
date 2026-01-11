@@ -1,5 +1,6 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
+const { PDFDocument } = require('pdf-lib');
 const app = express();
 
 app.use(express.json({ limit: '50mb' }));
@@ -20,6 +21,72 @@ async function initBrowser() {
     console.log('Browser initialized');
 }
 
+async function generateSingleSheetPDF(html, options) {
+    const page = await browser.newPage();
+
+    await page.setViewport({
+        width: 800,
+        height: 600,
+        deviceScaleFactor: 1
+    });
+
+    await page.setContent(html, {
+        waitUntil: 'networkidle0',
+        timeout: 30000
+    });
+
+    if (options.zoom && options.zoom !== 1) {
+        await page.evaluate((zoom) => {
+            document.body.style.zoom = zoom;
+        }, options.zoom);
+    }
+
+    const pdfOptions = {
+        printBackground: true,
+        margin: {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0
+        }
+    };
+
+    const dimensions = await page.evaluate(() => {
+        const body = document.body;
+        const table = document.querySelector('table');
+        const firstChild = body.firstElementChild;
+        
+        let width, height;
+        
+        if (table) {
+            const rect = table.getBoundingClientRect();
+            width = Math.ceil(rect.width);
+            height = Math.ceil(rect.height);
+            return { width, height, source: 'table' };
+        } else if (firstChild) {
+            const rect = firstChild.getBoundingClientRect();
+            width = Math.ceil(rect.width);
+            height = Math.ceil(rect.height);
+            return { width, height, source: 'firstChild' };
+        } else {
+            return { 
+                width: body.scrollWidth, 
+                height: body.scrollHeight,
+                source: 'body'
+            };
+        }
+    });
+    
+    pdfOptions.width = `${dimensions.width + 20}px`;
+    pdfOptions.height = `${dimensions.height + 20}px`;
+    pdfOptions.preferCSSPageSize = false;
+
+    const pdfBuffer = await page.pdf(pdfOptions);
+    await page.close();
+
+    return { buffer: pdfBuffer, dimensions };
+}
+
 app.post('/api/generate-pdf', async (req, res) => {
     try {
         const { html, options = {} } = req.body;
@@ -28,115 +95,116 @@ app.post('/api/generate-pdf', async (req, res) => {
             return res.status(400).json({ error: 'HTML is required' });
         }
 
-        const page = await browser.newPage();
-
         if (options.orientation === 'fit') {
-            await page.setViewport({
-                width: 800,
-                height: 600,
-                deviceScaleFactor: 1
+            console.log('=== FIT MODE: Generating separate PDFs per sheet ===');
+            
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            
+            const sheetsHtml = await page.evaluate(() => {
+                const sheets = [];
+                const body = document.body;
+                const children = Array.from(body.children);
+                
+                let currentSheet = [];
+                
+                children.forEach(child => {
+                    if (child.style.pageBreakBefore === 'always' || 
+                        child.getAttribute('style')?.includes('page-break-before: always')) {
+                        if (currentSheet.length > 0) {
+                            sheets.push(currentSheet.join(''));
+                            currentSheet = [];
+                        }
+                    } else {
+                        currentSheet.push(child.outerHTML);
+                    }
+                });
+                
+                if (currentSheet.length > 0) {
+                    sheets.push(currentSheet.join(''));
+                }
+                
+                const style = document.querySelector('style')?.outerHTML || '';
+                
+                return sheets.map(sheetHtml => {
+                    return `<!DOCTYPE html><html><head><meta charset="UTF-8">${style}</head><body>${sheetHtml}</body></html>`;
+                });
             });
+            
+            await page.close();
+            
+            console.log(`Found ${sheetsHtml.length} sheets`);
+            
+            const pdfBuffers = [];
+            for (let i = 0; i < sheetsHtml.length; i++) {
+                console.log(`Generating PDF for sheet ${i + 1}...`);
+                const result = await generateSingleSheetPDF(sheetsHtml[i], options);
+                pdfBuffers.push(result.buffer);
+                console.log(`Sheet ${i + 1}: ${result.dimensions.width}px × ${result.dimensions.height}px`);
+            }
+            
+            const mergedPdf = await PDFDocument.create();
+            
+            for (const buffer of pdfBuffers) {
+                const pdf = await PDFDocument.load(buffer);
+                const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                pages.forEach(page => mergedPdf.addPage(page));
+            }
+            
+            const mergedPdfBytes = await mergedPdf.save();
+            
+            console.log('=== PDF merge completed ===');
+            
+            res.set({
+                'Content-Type': 'application/pdf',
+                'Content-Length': mergedPdfBytes.length,
+                'Content-Disposition': `attachment; filename="document.pdf"`
+            });
+            res.send(Buffer.from(mergedPdfBytes));
+            
         } else {
+            const page = await browser.newPage();
+
             await page.setViewport({
                 width: 1920,
                 height: 1080,
                 deviceScaleFactor: 1
             });
-        }
 
-        await page.setContent(html, {
-            waitUntil: 'networkidle0',
-            timeout: 30000
-        });
-
-        if (options.zoom && options.zoom !== 1) {
-            await page.evaluate((zoom) => {
-                document.body.style.zoom = zoom;
-            }, options.zoom);
-        }
-
-        const pdfOptions = {
-            printBackground: true
-        };
-
-        if (options.orientation === 'fit') {
-            pdfOptions.margin = {
-                top: 0,
-                right: 0,
-                bottom: 0,
-                left: 0
-            };
-            
-            console.log('=== STARTING FIT MODE DETECTION ===');
-            
-            const dimensions = await page.evaluate(() => {
-                const body = document.body;
-                const table = document.querySelector('table');
-                const firstChild = body.firstElementChild;
-                
-                let width, height;
-                
-                if (table) {
-                    const rect = table.getBoundingClientRect();
-                    width = Math.ceil(rect.width);
-                    return { 
-                        width, 
-                        height: body.scrollHeight,
-                        source: 'table',
-                        rectWidth: rect.width,
-                        offsetWidth: table.offsetWidth
-                    };
-                } else if (firstChild) {
-                    const rect = firstChild.getBoundingClientRect();
-                    width = Math.ceil(rect.width);
-                    return { 
-                        width, 
-                        height: body.scrollHeight,
-                        source: 'firstChild',
-                        tag: firstChild.tagName
-                    };
-                } else {
-                    return { 
-                        width: body.scrollWidth, 
-                        height: body.scrollHeight,
-                        source: 'body'
-                    };
-                }
+            await page.setContent(html, {
+                waitUntil: 'networkidle0',
+                timeout: 30000
             });
-            
-            console.log('=== FIT MODE RESULT ===');
-            console.log('Source:', dimensions.source);
-            console.log('Width:', dimensions.width);
-            console.log('Height:', dimensions.height);
-            if (dimensions.rectWidth) console.log('rectWidth:', dimensions.rectWidth);
-            if (dimensions.offsetWidth) console.log('offsetWidth:', dimensions.offsetWidth);
-            console.log('===========================');
-            
-            pdfOptions.width = `${dimensions.width}px`;
-            pdfOptions.height = `${dimensions.height}px`;
-            pdfOptions.preferCSSPageSize = false;
-        } else {
-            pdfOptions.format = options.format || 'A4';
-            pdfOptions.landscape = options.orientation === 'landscape';
-            pdfOptions.margin = {
-                top: '5mm',
-                right: '5mm',
-                bottom: '5mm',
-                left: '5mm'
+
+            if (options.zoom && options.zoom !== 1) {
+                await page.evaluate((zoom) => {
+                    document.body.style.zoom = zoom;
+                }, options.zoom);
+            }
+
+            const pdfOptions = {
+                printBackground: true,
+                format: options.format || 'A4',
+                landscape: options.orientation === 'landscape',
+                margin: {
+                    top: '5mm',
+                    right: '5mm',
+                    bottom: '5mm',
+                    left: '5mm'
+                },
+                preferCSSPageSize: false
             };
-            pdfOptions.preferCSSPageSize = false;
+
+            const pdfBuffer = await page.pdf(pdfOptions);
+            await page.close();
+
+            res.set({
+                'Content-Type': 'application/pdf',
+                'Content-Length': pdfBuffer.length,
+                'Content-Disposition': `attachment; filename="document.pdf"`
+            });
+            res.send(pdfBuffer);
         }
-
-        const pdfBuffer = await page.pdf(pdfOptions);
-
-        await page.close();
-
-        res.set({
-            'Content-Type': 'application/pdf',
-            'Content-Length': pdfBuffer.length,
-            'Content-Disposition': `attachment; filename="document.pdf"`
-        });
-        res.send(pdfBuffer);
 
     } catch (error) {
         console.error('PDF generation error:', error);

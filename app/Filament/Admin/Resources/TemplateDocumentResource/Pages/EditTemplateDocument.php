@@ -12,37 +12,26 @@ class EditTemplateDocument extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        $actions = [
-            Actions\ViewAction::make(),
+       
 
+
+    
+
+
+        $actions[] = Actions\ViewAction::make();
+
+        $actions[] = 
+            
             Actions\Action::make('next')
                 ->label('Next: Edit PDF Layout')
                 ->icon('heroicon-o-arrow-right')
                 ->color('success')
                 ->url(fn() => static::getResource()::getUrl('edit-pdf-layout', ['record' => $this->record]))
-                ->visible(fn() => $this->record->content !== null && $this->record->canEdit()),
-        ];
+                ->visible(fn() => $this->record->content !== null && $this->record->canEdit())
+        ;
 
-        if ($this->record->canPublish()) {
-            $actions[] = Actions\Action::make('publish')
-                ->label('Publish Template')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalHeading('Publish Template')
-                ->modalDescription(fn() => $this->getPublishWarnings())
-                ->action(fn() => $this->record->publish())
-                ->successNotification(
-                    \Filament\Notifications\Notification::make()
-                        ->success()
-                        ->title('Template published successfully')
-                )
-                ->after(fn() => $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record])));
-        }
-
-        if ($this->record->canDelete()) {
-            $actions[] = Actions\DeleteAction::make();
-        }
+       
+        
 
         return $actions;
     }

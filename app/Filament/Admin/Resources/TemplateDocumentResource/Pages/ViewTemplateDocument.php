@@ -17,6 +17,12 @@ class ViewTemplateDocument extends ViewRecord
     {
         $actions = [];
 
+         if ($this->record->canDelete()) {
+            $actions[] = Actions\DeleteAction::make();
+        }
+
+
+
         if ($this->record->canEdit()) {
             $actions[] = Actions\EditAction::make();
         }
@@ -67,9 +73,7 @@ class ViewTemplateDocument extends ViewRecord
                 );
         }
 
-        if ($this->record->canDelete()) {
-            $actions[] = Actions\DeleteAction::make();
-        }
+       
 
         return $actions;
     }

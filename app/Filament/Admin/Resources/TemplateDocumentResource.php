@@ -80,7 +80,7 @@ class TemplateDocumentResource extends Resource
 
                         $filePath = $record->excel_file;
                         $fileUrl = asset('storage/' . $filePath);
-                        $editorJsUrl = asset('js/luckysheet-editor.js');
+                        $editorJsUrl = asset('js/luckysheet-editor.js?v=1.1');
                         $id = 'luckysheet_' . uniqid();
                         $wrapperId = 'wrapper_' . $id;
 
@@ -188,7 +188,18 @@ HTML
                 Forms\Components\Textarea::make('content')
                     ->label('Template Content (JSON)')
                     ->dehydrated(true)
-                    ->default(''),
+                    ->afterStateHydrated(function ($component, $state, $record) {
+                        if (!$record) return;
+                        
+                        if (is_array($state)) {
+                            $component->state(json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                        } else {
+                            $raw = $record->getRawOriginal('content');
+                            if ($raw) {
+                                $component->state($raw);
+                            }
+                        }
+                    }),
             ])->visible(fn($record) => $record !== null && $record->canEdit()),
 
         ]);
