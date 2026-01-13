@@ -29,3 +29,4 @@ storage/logs/*
 !storage/framework/.gitignore
 !storage/framework/cache/.gitignore
 !storage/logs/.gitignore
+/pdf-service/node_modules

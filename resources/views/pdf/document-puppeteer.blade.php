@@ -76,7 +76,7 @@
         }
     </style>
 </head>
-<body>
+<body style="padding-left: 16px; padding-top: 16px;">
     @foreach($sheets as $sheet)
         @if($loop->index > 0)
         <div style="page-break-before: always;"></div>

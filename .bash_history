@@ -251,3 +251,14 @@ php artian optimize:clear
 php artisan optimize:clear
 php artisan filament:cache-components
 exit
+php artisan optimze:clear
+php artisan optimze:clear
+php artisan optimize:clear
+chown -R www-data:www-data storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
+exit
+ls -l public/storage
+rm -f public/storage
+php artisan storage:link
+ls -l public/storage
+exit

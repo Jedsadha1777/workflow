@@ -239,6 +239,9 @@ function initLuckysheetEditor(wrapperId, config) {
                 const container = document.getElementById(previewSheetsId);
                 container.innerHTML = "";
 
+
+                
+
                 let allHtml = "";
 
                 const style = document.createElement('style');

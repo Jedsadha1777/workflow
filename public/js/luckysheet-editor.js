@@ -110,7 +110,7 @@ function initLuckysheetEditor(wrapperId, config) {
             'https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js',
             'https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js',
             'https://cdn.jsdelivr.net/npm/luckyexcel/dist/luckyexcel.umd.js',
-            '/js/luckysheet-to-html.js'
+            '/js/luckysheet-to-html.js?v=2'
         ];
 
         let loaded = 0;
@@ -238,6 +238,9 @@ function initLuckysheetEditor(wrapperId, config) {
                 const sheets = luckysheetToHtml();
                 const container = document.getElementById(previewSheetsId);
                 container.innerHTML = "";
+
+                const allSheets = luckysheet.getAllSheets();
+                console.log('Luckysheet JSON:', JSON.stringify(allSheets, null, 2));
 
                 let allHtml = "";
 
@@ -454,7 +457,7 @@ function initLuckysheetEditor(wrapperId, config) {
                         const newContent = renderFormFields(this.value);
 
                         previewZoomWrapper.innerHTML = newContent;
-                        setTimeout(function () { updateZoom(currentZoom); }, 10);
+                        setTimeout(function () { updateZoom(currentZoom, previewZoomWrapper); }, 10);
 
                         sheets[index].html = this.value;
 
@@ -488,7 +491,7 @@ function initLuckysheetEditor(wrapperId, config) {
 
                     container.appendChild(sheetWrapper);
 
-                    setTimeout(function () { updateZoom(1.0); }, 50);
+                    setTimeout(function () { updateZoom(1.0, previewZoomWrapper); }, 50);
                 });
 
                 const contentData = {

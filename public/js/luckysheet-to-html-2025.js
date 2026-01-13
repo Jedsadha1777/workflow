@@ -544,47 +544,27 @@ function getCellBorders(r, c, borderInfo, cell) {
             const borderType = border.borderType;
             const style = border.style;
             const color = border.color;
-            const ranges = border.range || [];
+            const row = value.row || [r, r];
+            const column = value.column || [c, c];
             
-            ranges.forEach(rangeItem => {
-                const row = rangeItem.row || [r, r];
-                const column = rangeItem.column || [c, c];
-                 
-                if (r >= row[0] && r <= row[1] && c >= column[0] && c <= column[1]) {
-                    const borderStr = getBorderString(style, color);
-                    
-                    if (borderType === 'border-all') {
-                        borders.top = borderStr;
-                        borders.bottom = borderStr;
-                        borders.left = borderStr;
-                        borders.right = borderStr;
-                    } else if (borderType === 'border-outside') {
-                        if (r === row[0]) borders.top = borderStr;
-                        if (r === row[1]) borders.bottom = borderStr;
-                        if (c === column[0]) borders.left = borderStr;
-                        if (c === column[1]) borders.right = borderStr;
-                    } else if (borderType === 'border-inside') {
-                        if (r > row[0]) borders.top = borderStr;
-                        if (r < row[1]) borders.bottom = borderStr;
-                        if (c > column[0]) borders.left = borderStr;
-                        if (c < column[1]) borders.right = borderStr;
-                    } else if (borderType === 'border-horizontal') {
-                        if (r > row[0]) borders.top = borderStr;
-                        if (r < row[1]) borders.bottom = borderStr;
-                    } else if (borderType === 'border-vertical') {
-                        if (c > column[0]) borders.left = borderStr;
-                        if (c < column[1]) borders.right = borderStr;
-                    } else if (borderType === 'border-top' && r === row[0]) {
-                        borders.top = borderStr;
-                    } else if (borderType === 'border-bottom' && r === row[1]) {
-                        borders.bottom = borderStr;
-                    } else if (borderType === 'border-left' && c === column[0]) {
-                        borders.left = borderStr;
-                    } else if (borderType === 'border-right' && c === column[1]) {
-                        borders.right = borderStr;
-                    }
-                 }
-            });
+            if (r >= row[0] && r <= row[1] && c >= column[0] && c <= column[1]) {
+                const borderStr = getBorderString(style, color);
+                
+                if (borderType === 'border-all') {
+                    borders.top = borderStr;
+                    borders.bottom = borderStr;
+                    borders.left = borderStr;
+                    borders.right = borderStr;
+                } else if (borderType === 'border-top' && r === row[0]) {
+                    borders.top = borderStr;
+                } else if (borderType === 'border-bottom' && r === row[1]) {
+                    borders.bottom = borderStr;
+                } else if (borderType === 'border-left' && c === column[0]) {
+                    borders.left = borderStr;
+                } else if (borderType === 'border-right' && c === column[1]) {
+                    borders.right = borderStr;
+                }
+            }
         }
     });
     
