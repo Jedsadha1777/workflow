@@ -262,3 +262,41 @@ rm -f public/storage
 php artisan storage:link
 ls -l public/storage
 exit
+ls
+php artian migrate
+php artisan migrate
+clear
+php artisan migrate
+clear
+php artisan migrate
+php artisan db:seed --class=RoleSeeder
+php artisan db:seed --class=WorkflowStepTypeSeeder
+php artisan migrate
+php artisan tinker --execute="echo Schema::hasTable('template_workflows') ? 'EXISTS' : 'NOT EXISTS';"
+php artisan migrate
+ls -la resources/views/filament/admin/resources/workflow-resource/pages/
+php artisan migrate
+git add .
+git commit -m add "workflow layer"
+git commit -m "add workflow layer"
+exit
+php artisan migreate
+php artisan migrate
+php artisan migrate
+clear
+php artisan migrate
+php artisan migrate
+php artisan migrate
+ls -la resources/views/filament/admin/resources/workflow-resource/pages/edit-version.blade.php
+cat app/Filament/Admin/Resources/WorkflowResource/Pages/EditVersion.php
+php artisan optimize:clear
+php artisan route:list | grep workflow
+php artisan tinker --execute="echo 'Workflow 2: ' . (\App\Models\Workflow::find(2)?->name ?? 'NOT FOUND'); echo PHP_EOL . 'Version 2: ' . (\App\Models\WorkflowVersion::find(2)?->version ?? 'NOT FOUND') . ' (workflow_id: ' . (\App\Models\WorkflowVersion::find(2)?->workflow_id ?? 'N/A') . ')';"
+php artisan tinker --execute="\$w = \App\Models\Workflow::find(2); \$v = \App\Models\WorkflowVersion::find(2); echo 'version->workflow_id: ' . \$v->workflow_id . PHP_EOL; echo 'workflow->id: ' . \$w->id . PHP_EOL; echo 'match: ' . (\$v->workflow_id === \$w->id ? 'YES' : 'NO');"
+tail -30 storage/logs/laravel.log
+clear
+truncate -s 0 storage/logs/laravel.log
+cat storage/logs/laravel.log
+cat storage/logs/laravel.log
+cat app/Filament/Admin/Resources/WorkflowResource/Pages/ManageVersions.php
+exit

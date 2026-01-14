@@ -3,37 +3,32 @@
 namespace App\Models;
 
 use App\Enums\ApprovalStatus;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DocumentApprover extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'document_id',
         'step_order',
-        'required_role',
-        'same_department',
+        'role_id',
+        'department_id',
+        'step_type_id',
+        'signature_cell',
+        'approved_date_cell',
         'approver_id',
         'approver_name',
         'approver_email',
-        'signature_cell',
-        'approved_date_cell',
         'status',
         'comment',
         'approved_at',
-        'rejected_at',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => ApprovalStatus::class,
-            'same_department' => 'boolean',
             'approved_at' => 'datetime',
-            'rejected_at' => 'datetime',
         ];
     }
 
@@ -47,66 +42,59 @@ class DocumentApprover extends Model
         return $this->belongsTo(User::class, 'approver_id');
     }
 
-    public function canBeChangedBy(User $user): bool
+    public function role(): BelongsTo
     {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        return $this->approver_id === $user->id && $this->status === ApprovalStatus::PENDING;
+        return $this->belongsTo(Role::class);
     }
 
-    public function approveWithSignature(): void
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    public function stepType(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowStepType::class, 'step_type_id');
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === ApprovalStatus::PENDING;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === ApprovalStatus::APPROVED;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === ApprovalStatus::REJECTED;
+    }
+
+    public function approve(?string $comment = null): void
     {
         $this->update([
             'status' => ApprovalStatus::APPROVED,
+            'comment' => $comment,
             'approved_at' => now(),
         ]);
-
-        if ($this->signature_cell) {
-            [$sheet, $cell] = $this->parseSignatureCell();
-
-            if ($sheet && $cell) {
-                $this->document->setSignature($sheet, $cell, $this->approver_id);
-                $this->document->save();
-            }
-        }
-
-        if ($this->approved_date_cell) {
-            [$sheet, $cell] = $this->parseDateCell();
-
-            if ($sheet && $cell) {
-                $this->document->setApprovedDate($sheet, $cell);
-                $this->document->save();
-            }
-        }
     }
 
-    protected function parseSignatureCell(): array
+    public function reject(?string $comment = null): void
     {
-        if (!$this->signature_cell || !str_contains($this->signature_cell, ':')) {
-            return [null, null];
-        }
-
-        return explode(':', $this->signature_cell, 2);
+        $this->update([
+            'status' => ApprovalStatus::REJECTED,
+            'comment' => $comment,
+            'approved_at' => now(),
+        ]);
     }
 
-    protected function parseDateCell(): array
+    public function getStepLabel(): string
     {
-        if (!$this->approved_date_cell || !str_contains($this->approved_date_cell, ':')) {
-            return [null, null];
-        }
-
-        return explode(':', $this->approved_date_cell, 2);
-    }
-
-    public function getApproverDisplay(): string
-    {
-        return $this->approver_name ?? 'N/A';
-    }
-
-    public function getApproverEmailDisplay(): string
-    {
-        return $this->approver_email ?? 'N/A';
+        $typeName = $this->stepType->name ?? 'Step';
+        $roleName = $this->role->name ?? $this->approver_name ?? 'Unknown';
+        
+        return "{$typeName} by {$roleName}";
     }
 }

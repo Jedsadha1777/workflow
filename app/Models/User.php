@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
-use App\Enums\UserRole;
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
@@ -19,9 +16,10 @@ class User extends Authenticatable implements FilamentUser
         'name',
         'email',
         'password',
-        'role',
+        'role_id',
         'department_id',
         'signature_image',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -34,31 +32,13 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => UserRole::class,
+            'is_active' => 'boolean',
         ];
     }
 
-    public function canAccessPanel(Panel $panel): bool
+    public function role(): BelongsTo
     {
-        if ($panel->getId() === 'admin') {
-            return $this->isAdmin();
-        }
-
-        if ($panel->getId() === 'app') {
-            return $this->isUser();
-        }
-
-        return false;
-    }
-
-    public function isAdmin(): bool
-    {
-        return in_array($this->role->value, UserRole::adminRoles());
-    }
-
-    public function isUser(): bool
-    {
-        return in_array($this->role->value, UserRole::userRoles());
+        return $this->belongsTo(Role::class);
     }
 
     public function department(): BelongsTo
@@ -71,8 +51,28 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Document::class, 'creator_id');
     }
 
-    public function approvals(): HasMany
+    public function isAdmin(): bool
     {
-        return $this->hasMany(DocumentApprover::class, 'approver_id');
+        return $this->role?->is_admin ?? false;
+    }
+
+    public function hasRole(string $code): bool
+    {
+        return $this->role?->code === $code;
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeByRole($query, int $roleId)
+    {
+        return $query->where('role_id', $roleId);
+    }
+
+    public function scopeByDepartment($query, int $departmentId)
+    {
+        return $query->where('department_id', $departmentId);
     }
 }

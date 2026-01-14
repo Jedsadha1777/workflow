@@ -2,9 +2,10 @@
 
 namespace App\Filament\Admin\Resources;
 
-use App\Enums\UserRole;
 use App\Filament\Admin\Resources\UserResource\Pages;
 use App\Models\User;
+use App\Models\Role;
+use App\Models\Department;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -15,45 +16,59 @@ use Illuminate\Support\Facades\Hash;
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static ?string $navigationGroup = 'Settings';
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')->required(),
-                Forms\Components\TextInput::make('email')->email()->required()->unique(ignoreRecord: true),
-                Forms\Components\Select::make('role')
-                    ->options(collect(UserRole::cases())->mapWithKeys(
-                        fn ($role) => [$role->value => $role->label()]
-                    ))
-                    ->required(),
-                Forms\Components\Select::make('department_id')
-                    ->label('Department')
-                    ->relationship('department', 'name')
-                    ->required()
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\FileUpload::make('signature_image')
-                    ->label('Signature Image')
-                    ->image()
-                    ->disk('public')
-                    ->directory('signatures')
-                    ->imageEditor()
-                    ->imageEditorAspectRatios([
-                        '16:9',
-                        '4:3',
-                        '1:1',
+                Forms\Components\Section::make('User Information')
+                    ->schema([
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('email')
+                            ->email()
+                            ->required()
+                            ->unique(ignoreRecord: true)
+                            ->maxLength(255),
+                        Forms\Components\Select::make('role_id')
+                            ->label('Role')
+                            ->options(Role::where('is_active', true)->pluck('name', 'id'))
+                            ->required()
+                            ->searchable()
+                            ->preload(),
+                        Forms\Components\Select::make('department_id')
+                            ->label('Department')
+                            ->options(Department::where('is_active', true)->pluck('name', 'id'))
+                            ->required()
+                            ->searchable()
+                            ->preload(),
+                        Forms\Components\TextInput::make('password')
+                            ->password()
+                            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->required(fn (string $context): bool => $context === 'create')
+                            ->maxLength(255),
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true),
                     ])
-                    ->maxSize(2048)
-                    ->helperText('Upload signature image (Max: 2MB)')
-                    ->columnSpanFull(),
-                Forms\Components\TextInput::make('password')
-                    ->password()
-                    ->dehydrateStateUsing(fn ($state) => Hash::make($state))
-                    ->dehydrated(fn ($state) => filled($state))
-                    ->required(fn (string $context): bool => $context === 'create'),
+                    ->columns(2),
+
+                Forms\Components\Section::make('Signature')
+                    ->schema([
+                        Forms\Components\FileUpload::make('signature_image')
+                            ->label('Signature Image')
+                            ->image()
+                            ->disk('public')
+                            ->directory('signatures')
+                            ->imageEditor()
+                            ->maxSize(2048),
+                    ])
+                    ->collapsible(),
             ]);
     }
 
@@ -61,23 +76,54 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->searchable(),
-                Tables\Columns\TextColumn::make('email')->searchable(),
-                Tables\Columns\TextColumn::make('role')
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('email')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('role.name')
+                    ->label('Role')
                     ->badge()
-                    ->formatStateUsing(fn ($state) => $state->label()),
+                    ->color(fn ($record) => $record->role?->is_admin ? 'danger' : 'primary')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('department.name')
                     ->label('Department')
-                    ->searchable(),
-                Tables\Columns\ImageColumn::make('signature_image')
-                    ->label('Signature')
-                    ->disk('public')
-                    ->height(40),
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Active')
+                    ->boolean(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('role_id')
+                    ->label('Role')
+                    ->options(Role::pluck('name', 'id')),
+                Tables\Filters\SelectFilter::make('department_id')
+                    ->label('Department')
+                    ->options(Department::pluck('name', 'id')),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Active'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
-            ]);
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('name');
+    }
+
+    public static function getRelations(): array
+    {
+        return [];
     }
 
     public static function getPages(): array

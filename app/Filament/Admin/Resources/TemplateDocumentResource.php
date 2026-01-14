@@ -190,7 +190,7 @@ HTML
                     ->dehydrated(true)
                     ->afterStateHydrated(function ($component, $state, $record) {
                         if (!$record) return;
-                        
+
                         if (is_array($state)) {
                             $component->state(json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                         } else {

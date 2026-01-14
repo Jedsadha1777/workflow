@@ -2,7 +2,6 @@
 
 namespace App\Filament\Admin\Resources\TemplateDocumentResource\Pages;
 
-use App\Enums\UserRole;
 use App\Enums\TemplateStatus;
 use App\Filament\Admin\Resources\TemplateDocumentResource;
 use Filament\Forms;
@@ -33,8 +32,7 @@ class SetupWorkflow extends Page
                 ->orderBy('step_order')
                 ->get()
                 ->map(fn ($workflow) => [
-                    'required_role' => $workflow->required_role,
-                    'same_department' => $workflow->same_department,
+                    'step_name' => $workflow->step_name,
                     'signature_cell' => $workflow->signature_cell,
                     'approved_date_cell' => $workflow->approved_date_cell,
                 ])
@@ -49,22 +47,16 @@ class SetupWorkflow extends Page
 
         return $form
             ->schema([
-                Forms\Components\Section::make('Workflow Steps')
-                    ->description('Define approval workflow for this template')
+                Forms\Components\Section::make('Signature & Date Fields')
+                    ->description('Define signature and date cell positions for approval workflow')
                     ->schema([
                         Forms\Components\Repeater::make('workflows')
+                            ->label('Approval Steps')
                             ->schema([
-                                Forms\Components\Select::make('required_role')
-                                    ->label('Required Role')
-                                   ->options(collect(UserRole::cases())->mapWithKeys(
-                                        fn ($role) => [$role->value => $role->label()]
-                                    ))
-                                    ->required()
-                                    ->native(false),                                    
-
-                                Forms\Components\Checkbox::make('same_department')
-                                    ->label('Same Department')
-                                     ->helperText('Approver must be in the same department as document creator'),
+                                Forms\Components\TextInput::make('step_name')
+                                    ->label('Step Name')
+                                    ->placeholder('e.g. Prepared by, Checked by, Approved by')
+                                    ->maxLength(100),
 
                                 Forms\Components\Select::make('signature_cell')
                                     ->label('Signature Cell')
@@ -80,7 +72,7 @@ class SetupWorkflow extends Page
                                     ->native(false)
                                     ->helperText('Select date field from template'),
                             ])
-                            ->columns(4)
+                            ->columns(3)
                             ->reorderable()
                             ->addActionLabel('Add Step')
                             ->defaultItems(0)
@@ -109,13 +101,13 @@ class SetupWorkflow extends Page
     }
 
     protected function getHeaderActions(): array
-     {
-         return [
-             Actions\Action::make('back')
-                 ->label('Back to Settings')
-                 ->icon('heroicon-o-arrow-left')
-                 ->color('gray')
-                 ->url(fn() => static::getResource()::getUrl('settings', ['record' => $this->record])),
+    {
+        return [
+            Actions\Action::make('back')
+                ->label('Back to Settings')
+                ->icon('heroicon-o-arrow-left')
+                ->color('gray')
+                ->url(fn() => static::getResource()::getUrl('settings', ['record' => $this->record])),
             
             Actions\Action::make('back_to_list')
                 ->label('Back to List')
@@ -142,11 +134,8 @@ class SetupWorkflow extends Page
                     $this->redirect(static::getResource()::getUrl('index'));
                 })
                 ->visible(fn() => $this->record->status === TemplateStatus::DRAFT),
-         ];
-     }
-
-
-    
+        ];
+    }
 
     public function save(): void
     {
@@ -158,8 +147,7 @@ class SetupWorkflow extends Page
             foreach ($data['workflows'] as $index => $workflowData) {
                 $this->record->workflows()->create([
                     'step_order' => $index + 1,
-                    'required_role' => $workflowData['required_role'],
-                    'same_department' => $workflowData['same_department'] ?? false,
+                    'step_name' => $workflowData['step_name'] ?? null,
                     'signature_cell' => $workflowData['signature_cell'] ?? null,
                     'approved_date_cell' => $workflowData['approved_date_cell'] ?? null,
                 ]);
