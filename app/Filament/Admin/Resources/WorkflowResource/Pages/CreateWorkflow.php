@@ -29,11 +29,4 @@ class CreateWorkflow extends CreateRecord
             $this->getCreateFormAction(),
         ];
     }
-
-    protected function getCreateFormAction(): \Filament\Actions\Action
-    {
-        return parent::getCreateFormAction()
-            ->submit(null)
-            ->action('create');
-    }
 }

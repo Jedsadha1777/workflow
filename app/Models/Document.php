@@ -89,6 +89,44 @@ class Document extends Model
         return $this->isDraft() || $this->isRejected();
     }
 
+    public function canBeEditedBy(User $user): bool
+    {
+        if (!$this->canEdit()) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $this->creator_id === $user->id;
+    }
+
+    public function getViewType(User $user): string
+    {
+        if ($user->isAdmin()) {
+            return 'full';
+        }
+
+        if ($this->creator_id === $user->id) {
+            return 'full';
+        }
+
+        $isApprover = $this->approvers()
+            ->where('approver_id', $user->id)
+            ->exists();
+
+        if ($isApprover) {
+            return 'full';
+        }
+
+        if ($this->department_id === $user->department_id) {
+            return 'limited';
+        }
+
+        return 'none';
+    }
+
     public function getCurrentApprover(): ?DocumentApprover
     {
         return $this->approvers()
@@ -116,5 +154,30 @@ class Document extends Model
                 'approved_at' => now(),
             ]);
         }
+    }
+
+    public function setSignature(string $sheet, string $cell, int $userId): void
+    {
+        $user = User::find($userId);
+        if (!$user || !$user->signature_path) {
+            return;
+        }
+
+        $content = $this->content ?? [];
+        $content['signatures'] = $content['signatures'] ?? [];
+        $content['signatures']["{$sheet}:{$cell}"] = [
+            'user_id' => $userId,
+            'path' => $user->signature_path,
+            'signed_at' => now()->toISOString(),
+        ];
+        $this->content = $content;
+    }
+
+    public function setApprovedDate(string $sheet, string $cell): void
+    {
+        $content = $this->content ?? [];
+        $content['approved_dates'] = $content['approved_dates'] ?? [];
+        $content['approved_dates']["{$sheet}:{$cell}"] = now()->format('d/m/Y');
+        $this->content = $content;
     }
 }

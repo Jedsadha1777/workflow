@@ -29,11 +29,12 @@ class WorkflowResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        $latestVersion = $record->latestVersion;
-        if (!$latestVersion) {
-            return true;
-        }
-        return $latestVersion->status === 'DRAFT';
+        return $record->canEdit();
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return $record->canDelete();
     }
 
     public static function form(Form $form): Form
@@ -46,7 +47,7 @@ class WorkflowResource extends Resource
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
-                            ->disabled(fn (?Model $record) => $record && !static::canEdit($record)),
+                            ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
                         Forms\Components\Select::make('template_id')
                             ->label('Template')
                             ->options(
@@ -60,7 +61,7 @@ class WorkflowResource extends Resource
                             ->required()
                             ->live()
                             ->afterStateUpdated(fn (Set $set) => $set('steps', []))
-                            ->disabled(fn (?Model $record) => $record && !static::canEdit($record)),
+                            ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
                         Forms\Components\Select::make('department_id')
                             ->label('Department')
                             ->options(Department::where('is_active', true)->pluck('name', 'id'))
@@ -68,7 +69,7 @@ class WorkflowResource extends Resource
                             ->preload()
                             ->required()
                             ->helperText('แผนกที่ใช้ workflow นี้')
-                            ->disabled(fn (?Model $record) => $record && !static::canEdit($record)),
+                            ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
                         Forms\Components\Select::make('role_id')
                             ->label('Role')
                             ->options(Role::where('is_active', true)->where('is_admin', false)->pluck('name', 'id'))
@@ -76,7 +77,7 @@ class WorkflowResource extends Resource
                             ->preload()
                             ->required()
                             ->helperText('ตำแหน่งที่ใช้ workflow นี้ (ผู้สร้างเอกสาร)')
-                            ->disabled(fn (?Model $record) => $record && !static::canEdit($record)),
+                            ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),
@@ -84,7 +85,7 @@ class WorkflowResource extends Resource
                     ->columns(5),
 
                 Forms\Components\Section::make('Template Signature/Date Positions')
-                    ->description('ตำแหน่งลายเซ็นและวันที่ที่กำหนดไว้ใน Template')
+                    ->description('ตำแหน่งลายเซ็นและวันที่ที่กำหนดไว้ใน Template (อ่านอย่างเดียว)')
                     ->schema([
                         Forms\Components\Placeholder::make('template_steps_display')
                             ->label('')
@@ -101,7 +102,7 @@ class WorkflowResource extends Resource
 
                                 $templateWorkflows = $template->workflows()->orderBy('step_order')->get();
                                 if ($templateWorkflows->isEmpty()) {
-                                    return new HtmlString('<p class="text-amber-600">Template นี้ยังไม่ได้กำหนดตำแหน่งลายเซ็น/วันที่ กรุณาไปตั้งค่าที่ Template → Setup Workflow ก่อน</p>');
+                                    return new HtmlString('<p class="text-amber-600">Template นี้ยังไม่ได้กำหนดตำแหน่งลายเซ็น/วันที่</p>');
                                 }
 
                                 $html = '<table class="w-full text-sm border">';
@@ -128,11 +129,12 @@ class WorkflowResource extends Resource
                     ->visible(fn (Get $get) => $get('template_id') !== null),
 
                 Forms\Components\Section::make('Workflow Steps')
-                    ->description(fn (?Model $record) => $record && !static::canEdit($record) 
+                    ->description(fn (?Model $record) => $record && !$record->canEdit() 
                         ? 'Version นี้ถูก Publish แล้ว ไม่สามารถแก้ไขได้ ต้อง Clone เป็น Version ใหม่'
                         : 'กำหนดว่าแต่ละ step ใครเป็นผู้อนุมัติ')
                     ->schema([
                         Forms\Components\Repeater::make('steps')
+                            ->relationship()
                             ->label('')
                             ->schema([
                                 Forms\Components\Select::make('template_step_order')
@@ -170,7 +172,7 @@ class WorkflowResource extends Resource
                                 Forms\Components\Select::make('department_id')
                                     ->label('Approver Dept')
                                     ->options(Department::where('is_active', true)->pluck('name', 'id'))
-                                    ->placeholder('แผนกเดียวกับเอกสาร')
+                                    ->placeholder('Any department')
                                     ->native(false),
                                 Forms\Components\Select::make('step_type_id')
                                     ->label('Step Type')
@@ -179,9 +181,10 @@ class WorkflowResource extends Resource
                                     ->native(false),
                             ])
                             ->columns(4)
-                            ->reorderable(fn (?Model $record) => !$record || static::canEdit($record))
-                            ->addable(fn (?Model $record) => !$record || static::canEdit($record))
-                            ->deletable(fn (?Model $record) => !$record || static::canEdit($record))
+                            ->orderColumn('step_order')
+                            ->reorderable(fn (?Model $record) => !$record || $record->canEdit())
+                            ->addable(fn (?Model $record) => !$record || $record->canEdit())
+                            ->deletable(fn (?Model $record) => !$record || $record->canEdit())
                             ->addActionLabel('Add Step')
                             ->defaultItems(0)
                             ->columnSpanFull(),
@@ -211,10 +214,13 @@ class WorkflowResource extends Resource
                     ->color('info')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('latestVersion.version')
-                    ->label('Latest')
-                    ->formatStateUsing(fn ($state) => $state ? "v{$state}" : '-'),
-                Tables\Columns\TextColumn::make('latestVersion.status')
+                Tables\Columns\TextColumn::make('version')
+                    ->label('Version')
+                    ->formatStateUsing(fn ($state) => "v{$state}")
+                    ->badge()
+                    ->color('gray')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->color(fn ($state) => match ($state) {
@@ -222,10 +228,14 @@ class WorkflowResource extends Resource
                         'PUBLISHED' => 'success',
                         'ARCHIVED' => 'warning',
                         default => 'gray',
-                    }),
+                    })
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
+                Tables\Columns\TextColumn::make('steps_count')
+                    ->counts('steps')
+                    ->label('Steps'),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -236,19 +246,25 @@ class WorkflowResource extends Resource
                 Tables\Filters\SelectFilter::make('role_id')
                     ->label('Role')
                     ->options(Role::where('is_admin', false)->pluck('name', 'id')),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'DRAFT' => 'Draft',
+                        'PUBLISHED' => 'Published',
+                        'ARCHIVED' => 'Archived',
+                    ]),
             ])
             ->actions([
-                Tables\Actions\Action::make('manage_versions')
-                    ->label('Versions')
-                    ->icon('heroicon-o-cog-6-tooth')
-                    ->url(fn (Workflow $record) => Pages\ManageVersions::getUrl(['record' => $record])),
-                Tables\Actions\EditAction::make()
-                    ->visible(fn (Workflow $record) => static::canEdit($record)),
-                Tables\Actions\ViewAction::make()
-                    ->visible(fn (Workflow $record) => !static::canEdit($record)),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make(),
+                    Tables\Actions\EditAction::make()
+                        ->visible(fn (Workflow $record) => $record->canEdit()),
+                    Tables\Actions\DeleteAction::make()
+                        ->visible(fn (Workflow $record) => $record->canDelete()),
+                ]),
             ])
             ->bulkActions([])
-            ->defaultSort('name');
+            ->defaultSort('created_at', 'desc');
     }
 
     public static function getRelations(): array
@@ -263,8 +279,6 @@ class WorkflowResource extends Resource
             'create' => Pages\CreateWorkflow::route('/create'),
             'edit' => Pages\EditWorkflow::route('/{record}/edit'),
             'view' => Pages\ViewWorkflow::route('/{record}'),
-            'manage-versions' => Pages\ManageVersions::route('/{record}/versions'),
-            'edit-version' => Pages\EditVersion::route('/{record}/versions/{version}/edit'),
         ];
     }
 }

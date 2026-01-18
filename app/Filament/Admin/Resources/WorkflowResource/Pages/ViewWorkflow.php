@@ -99,6 +99,7 @@ class ViewWorkflow extends ViewRecord
                             ->badge()
                             ->color('info'),
                         Infolists\Components\TextEntry::make('version')
+                            ->formatStateUsing(fn ($state) => "v{$state}")
                             ->badge()
                             ->color('gray'),
                         Infolists\Components\TextEntry::make('status')
@@ -130,7 +131,7 @@ class ViewWorkflow extends ViewRecord
                                     ->color('info'),
                                 Infolists\Components\TextEntry::make('department.name')
                                     ->label('Approver Dept')
-                                    ->default('Same as document'),
+                                    ->default('Any department'),
                                 Infolists\Components\TextEntry::make('stepType.name')
                                     ->label('Type'),
                                 Infolists\Components\TextEntry::make('template_step_order')

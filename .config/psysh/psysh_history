@@ -1,0 +1,2 @@
+Schema::getColumnType('documents', 'status');
+App\Models\WorkflowStepType::all(['id','name','code','send_email'])->toArray();

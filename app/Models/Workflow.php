@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\TemplateStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -88,7 +87,6 @@ class Workflow extends Model
             return false;
         }
 
-        // Archive other published versions of the same workflow (same name, template, department, role)
         static::where('name', $this->name)
             ->where('template_id', $this->template_id)
             ->where('department_id', $this->department_id)
@@ -113,20 +111,17 @@ class Workflow extends Model
 
     public function createNewVersion(): static
     {
-        // Find max version for this workflow group
         $maxVersion = static::where('name', $this->name)
             ->where('template_id', $this->template_id)
             ->where('department_id', $this->department_id)
             ->where('role_id', $this->role_id)
             ->max('version');
 
-        // Clone workflow
         $newWorkflow = $this->replicate();
         $newWorkflow->version = ($maxVersion ?? 0) + 1;
         $newWorkflow->status = 'DRAFT';
         $newWorkflow->save();
 
-        // Clone steps
         foreach ($this->steps as $step) {
             $newStep = $step->replicate();
             $newStep->workflow_id = $newWorkflow->id;

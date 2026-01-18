@@ -9,6 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Drop old unique index on workflow_steps
         $indexExists = DB::select("
             SHOW INDEX FROM workflow_steps 
             WHERE Key_name = 'workflow_steps_workflow_version_id_step_order_unique'

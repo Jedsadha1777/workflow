@@ -333,3 +333,5 @@ grep -E "canBeEditedBy|getViewType|setSignature|setApprovedDate" app/Filament/Ap
 git add .
 git commit -m "fixed bug"
 exit 
+php artisan migrate
+exit

@@ -32,7 +32,7 @@ class EditWorkflow extends EditRecord
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
-    
+
     protected function getFormActions(): array
     {
         return [
