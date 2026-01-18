@@ -102,6 +102,19 @@ class Document extends Model
         return $this->creator_id === $user->id;
     }
 
+    public function canBeRecalledBy(User $user): bool
+    {
+        if ($this->status !== DocumentStatus::PENDING) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $this->creator_id === $user->id;
+    }
+
     public function getViewType(User $user): string
     {
         if ($user->isAdmin()) {
