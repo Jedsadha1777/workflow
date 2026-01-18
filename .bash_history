@@ -300,3 +300,36 @@ cat storage/logs/laravel.log
 cat storage/logs/laravel.log
 cat app/Filament/Admin/Resources/WorkflowResource/Pages/ManageVersions.php
 exit
+php artisan migrate
+php artisan migrate
+cat app/Models/Document.php | head -50
+clear
+cat app/Models/Document.php
+clear
+grep -r "WorkflowVersion" app/ --include="*.php" -l
+rm app/Models/WorkflowVersion.php
+rm app/Enums/WorkflowVersionStatus.php
+rm app/Filament/Admin/Resources/WorkflowResource/Pages/ManageVersions.php
+rm app/Filament/Admin/Resources/WorkflowResource/Pages/EditVersion.php
+rm resources/views/filament/admin/resources/workflow-resource/pages/manage-versions.blade.php
+rm resources/views/filament/admin/resources/workflow-resource/pages/edit-version.blade.php
+php artisan migrate
+php artisan optimize:clear
+cat app/Filament/Admin/Resources/DocumentResource/Pages/SetupApproval.php 2>/dev/null || echo "NOT EXISTS"
+rm -f app/Models/WorkflowVersion.php
+rm -f app/Enums/WorkflowVersionStatus.php
+rm -f app/Filament/Admin/Resources/WorkflowResource/Pages/ManageVersions.php
+rm -f app/Filament/Admin/Resources/WorkflowResource/Pages/EditVersion.php
+rm -f resources/views/filament/admin/resources/workflow-resource/pages/manage-versions.blade.php
+rm -f resources/views/filament/admin/resources/workflow-resource/pages/edit-version.blade.php
+php artisan migrate
+php artisan optimize:clear
+clearr
+clear
+cat app/Models/Document.php
+clear
+grep -E "canBeEditedBy|getViewType|setSignature|setApprovedDate" app/Filament/App/Resources/DocumentResource.php app/Filament/App/Resources/DocumentResource/Pages/*.php 2>/dev/null
+#
+git add .
+git commit -m "fixed bug"
+exit 

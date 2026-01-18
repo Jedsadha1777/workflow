@@ -3,43 +3,37 @@
 namespace App\Filament\Admin\Resources\WorkflowResource\Pages;
 
 use App\Filament\Admin\Resources\WorkflowResource;
-use App\Models\Workflow;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Database\Eloquent\Model;
 
 class CreateWorkflow extends CreateRecord
 {
     protected static string $resource = WorkflowResource::class;
 
-    protected function handleRecordCreation(array $data): Model
+    protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $stepsData = $data['steps'] ?? [];
-        unset($data['steps']);
+        $data['version'] = 1;
+        $data['status'] = 'DRAFT';
+        $data['is_active'] = true;
 
-        $workflow = Workflow::create($data);
-
-        $version = $workflow->createNewVersion();
-
-        foreach ($stepsData as $index => $stepData) {
-            $version->steps()->create([
-                'step_order' => $index + 1,
-                'template_step_order' => $stepData['template_step_order'],
-                'role_id' => $stepData['role_id'],
-                'department_id' => $stepData['department_id'] ?? null,
-                'step_type_id' => $stepData['step_type_id'],
-            ]);
-        }
-
-        return $workflow;
+        return $data;
     }
 
     protected function getRedirectUrl(): string
     {
-        return ManageVersions::getUrl(['record' => $this->record]);
+        return $this->getResource()::getUrl('edit', ['record' => $this->record]);
     }
 
-    protected function getCreateAnotherFormAction(): \Filament\Actions\Action
+    protected function getFormActions(): array
     {
-        return parent::getCreateAnotherFormAction()->visible(false);
+        return [
+            $this->getCreateFormAction(),
+        ];
+    }
+
+    protected function getCreateFormAction(): \Filament\Actions\Action
+    {
+        return parent::getCreateFormAction()
+            ->submit(null)
+            ->action('create');
     }
 }

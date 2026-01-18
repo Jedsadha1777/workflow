@@ -15,7 +15,7 @@ class Document extends Model
         'creator_id',
         'department_id',
         'template_document_id',
-        'workflow_version_id',
+        'workflow_id',
         'form_data',
         'status',
         'submitted_at',
@@ -27,6 +27,7 @@ class Document extends Model
     {
         return [
             'status' => DocumentStatus::class,
+            'content' => 'array',
             'form_data' => 'array',
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
@@ -48,9 +49,9 @@ class Document extends Model
         return $this->belongsTo(TemplateDocument::class, 'template_document_id');
     }
 
-    public function workflowVersion(): BelongsTo
+    public function workflow(): BelongsTo
     {
-        return $this->belongsTo(WorkflowVersion::class);
+        return $this->belongsTo(Workflow::class);
     }
 
     public function approvers(): HasMany
@@ -106,7 +107,7 @@ class Document extends Model
     public function advanceToNextStep(): void
     {
         $nextApprover = $this->getNextApprover();
-        
+
         if ($nextApprover) {
             $this->update(['current_step' => $nextApprover->step_order]);
         } else {

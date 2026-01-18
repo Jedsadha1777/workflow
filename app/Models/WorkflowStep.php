@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 class WorkflowStep extends Model
 {
     protected $fillable = [
-        'workflow_version_id',
+        'workflow_id',
         'step_order',
         'role_id',
         'department_id',
@@ -17,9 +17,17 @@ class WorkflowStep extends Model
         'template_step_order',
     ];
 
-    public function workflowVersion(): BelongsTo
+    protected function casts(): array
     {
-        return $this->belongsTo(WorkflowVersion::class);
+        return [
+            'step_order' => 'integer',
+            'template_step_order' => 'integer',
+        ];
+    }
+
+    public function workflow(): BelongsTo
+    {
+        return $this->belongsTo(Workflow::class);
     }
 
     public function role(): BelongsTo
@@ -37,38 +45,10 @@ class WorkflowStep extends Model
         return $this->belongsTo(WorkflowStepType::class, 'step_type_id');
     }
 
-    public function getTemplateWorkflow(): ?TemplateWorkflow
-    {
-        if (!$this->template_step_order) {
-            return null;
-        }
-
-        return $this->workflowVersion->template->workflows()
-            ->where('step_order', $this->template_step_order)
-            ->first();
-    }
-
-    public function getSignatureCell(): ?string
-    {
-        return $this->getTemplateWorkflow()?->signature_cell;
-    }
-
-    public function getApprovedDateCell(): ?string
-    {
-        return $this->getTemplateWorkflow()?->approved_date_cell;
-    }
-
-    public function shouldSendEmail(): bool
-    {
-        return $this->stepType?->send_email ?? true;
-    }
-
     public function findCandidates(): Collection
     {
         $query = User::where('role_id', $this->role_id)
-            ->whereHas('role', function ($q) {
-                $q->where('is_active', true);
-            });
+            ->where('is_active', true);
 
         if ($this->department_id) {
             $query->where('department_id', $this->department_id);
@@ -77,12 +57,14 @@ class WorkflowStep extends Model
         return $query->get();
     }
 
-    public function getStepLabel(): string
+    public function getTemplateWorkflow(): ?TemplateWorkflow
     {
-        $typeName = $this->stepType->name ?? 'Step';
-        $roleName = $this->role->name ?? 'Unknown';
-        $deptName = $this->department ? " ({$this->department->name})" : '';
-        
-        return "{$typeName} by {$roleName}{$deptName}";
+        if (!$this->template_step_order || !$this->workflow?->template_id) {
+            return null;
+        }
+
+        return TemplateWorkflow::where('template_document_id', $this->workflow->template_id)
+            ->where('step_order', $this->template_step_order)
+            ->first();
     }
 }

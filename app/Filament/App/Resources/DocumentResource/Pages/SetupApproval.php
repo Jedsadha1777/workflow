@@ -8,7 +8,7 @@ use App\Filament\App\Resources\DocumentResource;
 use App\Models\Document;
 use App\Models\DocumentActivityLog;
 use App\Models\User;
-use App\Models\WorkflowVersion;
+use App\Models\Workflow;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -21,7 +21,7 @@ class SetupApproval extends Page
     
     public ?array $data = [];
     public ?Document $document = null;
-    public ?WorkflowVersion $workflowVersion = null;
+    public ?Workflow $workflow = null;
     public array $workflowSteps = [];
 
     public function mount(int|string $record): void
@@ -40,9 +40,9 @@ class SetupApproval extends Page
             return;
         }
 
-        $this->workflowVersion = $this->findWorkflowVersion();
+        $this->workflow = $this->findWorkflow();
 
-        if (!$this->workflowVersion) {
+        if (!$this->workflow) {
             Notification::make()
                 ->danger()
                 ->title('No workflow configured')
@@ -57,18 +57,18 @@ class SetupApproval extends Page
         $this->workflowSteps = $this->prepareWorkflowSteps();
     }
 
-    protected function findWorkflowVersion(): ?WorkflowVersion
+    protected function findWorkflow(): ?Workflow
     {
         $templateId = $this->document->template_document_id;
         $departmentId = auth()->user()->department_id;
+        $roleId = auth()->user()->role_id;
 
-        return WorkflowVersion::whereHas('workflow', function ($query) use ($departmentId) {
-                $query->where('department_id', $departmentId)
-                    ->where('is_active', true);
-            })
+        return Workflow::where('department_id', $departmentId)
+            ->where('role_id', $roleId)
             ->where('template_id', $templateId)
             ->where('status', 'PUBLISHED')
-            ->with(['steps.role', 'steps.stepType'])
+            ->where('is_active', true)
+            ->with(['steps.role', 'steps.department', 'steps.stepType'])
             ->latest('version')
             ->first();
     }
@@ -76,19 +76,18 @@ class SetupApproval extends Page
     protected function prepareWorkflowSteps(): array
     {
         $steps = [];
-        $userDepartmentId = auth()->user()->department_id;
 
-        foreach ($this->workflowVersion->steps as $step) {
-            $candidates = $step->findCandidates($userDepartmentId);
+        foreach ($this->workflow->steps as $step) {
+            $candidates = $step->findCandidates();
 
             if ($candidates->count() === 0) {
-                $deptText = $step->same_department ? 'in your department' : 'in the company';
+                $deptName = $step->department ? $step->department->name : 'any department';
                 $roleName = $step->role->name ?? 'Unknown Role';
                 
                 Notification::make()
                     ->danger()
                     ->title('Unable to create document')
-                    ->body("There is no {$roleName} {$deptText}")
+                    ->body("There is no {$roleName} in {$deptName}")
                     ->persistent()
                     ->send();
                 
@@ -96,14 +95,15 @@ class SetupApproval extends Page
                 return [];
             }
 
+            $templateWorkflow = $step->getTemplateWorkflow();
+
             $steps[] = [
                 'step_order' => $step->step_order,
                 'role' => $step->role,
+                'department' => $step->department,
                 'step_type' => $step->stepType,
-                'same_department' => $step->same_department,
-                'send_email' => $step->send_email,
-                'signature_cell' => $step->signature_cell,
-                'approved_date_cell' => $step->approved_date_cell,
+                'signature_cell' => $templateWorkflow?->signature_cell,
+                'approved_date_cell' => $templateWorkflow?->approved_date_cell,
                 'candidates' => $candidates,
                 'is_auto' => $candidates->count() === 1,
                 'selected_approver' => $candidates->count() === 1 ? $candidates->first() : null,
@@ -119,10 +119,10 @@ class SetupApproval extends Page
 
         foreach ($this->workflowSteps as $step) {
             $key = "approver_{$step['step_order']}";
-            $deptText = $step['same_department'] ? '(Same Dept)' : '(Any Dept)';
+            $deptName = $step['department'] ? "({$step['department']->name})" : '(Any Dept)';
             $stepTypeName = $step['step_type']->name ?? 'Step';
             $roleName = $step['role']->name ?? 'Unknown';
-            $label = "{$stepTypeName} by {$roleName} {$deptText}";
+            $label = "{$stepTypeName} by {$roleName} {$deptName}";
 
             if ($step['is_auto']) {
                 $schema[] = Forms\Components\TextInput::make($key)
@@ -183,8 +183,8 @@ class SetupApproval extends Page
             $this->document->approvers()->create([
                 'step_order' => $step['step_order'],
                 'role_id' => $step['role']->id,
+                'department_id' => $step['department']?->id,
                 'step_type_id' => $step['step_type']->id,
-                'same_department' => $step['same_department'],
                 'signature_cell' => $step['signature_cell'],
                 'approved_date_cell' => $step['approved_date_cell'],
                 'approver_id' => $approver->id,
@@ -198,19 +198,14 @@ class SetupApproval extends Page
         $this->document->update([
             'status' => DocumentStatus::PENDING,
             'submitted_at' => now(),
-            'workflow_version_id' => $this->workflowVersion->id,
+            'workflow_id' => $this->workflow->id,
         ]);
 
         DocumentActivityLog::log($this->document, DocumentActivityAction::SUBMITTED, null, [
             'old_status' => $oldStatus->value,
             'new_status' => DocumentStatus::PENDING->value,
-            'workflow_version_id' => $this->workflowVersion->id,
+            'workflow_id' => $this->workflow->id,
         ]);
-
-        $firstApprover = $this->document->approvers()->orderBy('step_order')->first();
-        if ($firstApprover && $firstApprover->approver) {
-            // TODO: Send email notification if step has send_email = true
-        }
 
         Notification::make()
             ->success()

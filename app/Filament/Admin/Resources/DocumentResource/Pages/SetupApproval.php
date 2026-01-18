@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\App\Resources\DocumentResource\Pages;
+namespace App\Filament\Admin\Resources\DocumentResource\Pages;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentActivityAction;
-use App\Filament\App\Resources\DocumentResource;
+use App\Filament\Admin\Resources\DocumentResource;
 use App\Models\Document;
 use App\Models\DocumentActivityLog;
 use App\Models\User;
-use App\Models\WorkflowVersion;
+use App\Models\Workflow;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -21,7 +21,7 @@ class SetupApproval extends Page
     
     public ?array $data = [];
     public ?Document $document = null;
-    public ?WorkflowVersion $workflowVersion = null;
+    public ?Workflow $workflow = null;
     public array $workflowSteps = [];
 
     public function mount(int|string $record): void
@@ -40,9 +40,9 @@ class SetupApproval extends Page
             return;
         }
 
-        $this->workflowVersion = $this->findWorkflowVersion();
+        $this->workflow = $this->findWorkflow();
 
-        if (!$this->workflowVersion) {
+        if (!$this->workflow) {
             Notification::make()
                 ->danger()
                 ->title('No workflow configured')
@@ -57,17 +57,17 @@ class SetupApproval extends Page
         $this->workflowSteps = $this->prepareWorkflowSteps();
     }
 
-    protected function findWorkflowVersion(): ?WorkflowVersion
+    protected function findWorkflow(): ?Workflow
     {
         $templateId = $this->document->template_document_id;
-        $departmentId = auth()->user()->department_id;
+        $departmentId = $this->document->department_id ?? auth()->user()->department_id;
+        $roleId = $this->document->creator?->role_id ?? auth()->user()->role_id;
 
-        return WorkflowVersion::whereHas('workflow', function ($query) use ($departmentId) {
-                $query->where('department_id', $departmentId)
-                    ->where('is_active', true);
-            })
+        return Workflow::where('department_id', $departmentId)
+            ->where('role_id', $roleId)
             ->where('template_id', $templateId)
             ->where('status', 'PUBLISHED')
+            ->where('is_active', true)
             ->with(['steps.role', 'steps.department', 'steps.stepType'])
             ->latest('version')
             ->first();
@@ -77,7 +77,7 @@ class SetupApproval extends Page
     {
         $steps = [];
 
-        foreach ($this->workflowVersion->steps as $step) {
+        foreach ($this->workflow->steps as $step) {
             $candidates = $step->findCandidates();
 
             if ($candidates->count() === 0) {
@@ -198,13 +198,13 @@ class SetupApproval extends Page
         $this->document->update([
             'status' => DocumentStatus::PENDING,
             'submitted_at' => now(),
-            'workflow_version_id' => $this->workflowVersion->id,
+            'workflow_id' => $this->workflow->id,
         ]);
 
         DocumentActivityLog::log($this->document, DocumentActivityAction::SUBMITTED, null, [
             'old_status' => $oldStatus->value,
             'new_status' => DocumentStatus::PENDING->value,
-            'workflow_version_id' => $this->workflowVersion->id,
+            'workflow_id' => $this->workflow->id,
         ]);
 
         Notification::make()

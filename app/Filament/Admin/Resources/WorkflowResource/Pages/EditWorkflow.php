@@ -13,16 +13,30 @@ class EditWorkflow extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('manage_versions')
-                ->label('Manage Versions')
-                ->icon('heroicon-o-cog-6-tooth')
-                ->url(fn () => ManageVersions::getUrl(['record' => $this->record])),
-            Actions\DeleteAction::make(),
+            Actions\ViewAction::make(),
+            Actions\DeleteAction::make()
+                ->visible(fn () => $this->record->canDelete()),
         ];
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (!$this->record->canEdit()) {
+            throw new \Exception('Cannot edit this workflow');
+        }
+
+        return $data;
     }
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+    
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getSaveFormAction(),
+        ];
     }
 }

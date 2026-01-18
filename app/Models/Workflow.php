@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\TemplateStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Workflow extends Model
 {
@@ -14,6 +14,8 @@ class Workflow extends Model
         'template_id',
         'department_id',
         'role_id',
+        'version',
+        'status',
         'is_active',
     ];
 
@@ -21,6 +23,7 @@ class Workflow extends Model
     {
         return [
             'is_active' => 'boolean',
+            'version' => 'integer',
         ];
     }
 
@@ -39,24 +42,14 @@ class Workflow extends Model
         return $this->belongsTo(Role::class);
     }
 
-    public function versions(): HasMany
+    public function steps(): HasMany
     {
-        return $this->hasMany(WorkflowVersion::class);
+        return $this->hasMany(WorkflowStep::class)->orderBy('step_order');
     }
 
-    public function latestVersion(): HasOne
+    public function documents(): HasMany
     {
-        return $this->hasOne(WorkflowVersion::class)->latestOfMany('version');
-    }
-
-    public function publishedVersion(): HasOne
-    {
-        return $this->hasOne(WorkflowVersion::class)->where('status', 'PUBLISHED')->latestOfMany('version');
-    }
-
-    public function draftVersion(): HasOne
-    {
-        return $this->hasOne(WorkflowVersion::class)->where('status', 'DRAFT')->latestOfMany('version');
+        return $this->hasMany(Document::class);
     }
 
     public function scopeActive($query)
@@ -64,18 +57,92 @@ class Workflow extends Model
         return $query->where('is_active', true);
     }
 
-    public function getNextVersionNumber(): int
+    public function scopePublished($query)
     {
-        $maxVersion = $this->versions()->max('version');
-        return ($maxVersion ?? 0) + 1;
+        return $query->where('status', 'PUBLISHED');
     }
 
-    public function createNewVersion(): WorkflowVersion
+    public function canEdit(): bool
     {
-        return $this->versions()->create([
-            'template_id' => $this->template_id,
-            'version' => $this->getNextVersionNumber(),
-            'status' => 'DRAFT',
-        ]);
+        return $this->status === 'DRAFT';
+    }
+
+    public function canDelete(): bool
+    {
+        return $this->status === 'DRAFT' && $this->documents()->count() === 0;
+    }
+
+    public function canPublish(): bool
+    {
+        return $this->status === 'DRAFT' && $this->steps()->count() > 0;
+    }
+
+    public function canArchive(): bool
+    {
+        return $this->status === 'PUBLISHED';
+    }
+
+    public function publish(): bool
+    {
+        if (!$this->canPublish()) {
+            return false;
+        }
+
+        // Archive other published versions of the same workflow (same name, template, department, role)
+        static::where('name', $this->name)
+            ->where('template_id', $this->template_id)
+            ->where('department_id', $this->department_id)
+            ->where('role_id', $this->role_id)
+            ->where('id', '!=', $this->id)
+            ->where('status', 'PUBLISHED')
+            ->update(['status' => 'ARCHIVED']);
+
+        $this->status = 'PUBLISHED';
+        return $this->save();
+    }
+
+    public function archive(): bool
+    {
+        if (!$this->canArchive()) {
+            return false;
+        }
+
+        $this->status = 'ARCHIVED';
+        return $this->save();
+    }
+
+    public function createNewVersion(): static
+    {
+        // Find max version for this workflow group
+        $maxVersion = static::where('name', $this->name)
+            ->where('template_id', $this->template_id)
+            ->where('department_id', $this->department_id)
+            ->where('role_id', $this->role_id)
+            ->max('version');
+
+        // Clone workflow
+        $newWorkflow = $this->replicate();
+        $newWorkflow->version = ($maxVersion ?? 0) + 1;
+        $newWorkflow->status = 'DRAFT';
+        $newWorkflow->save();
+
+        // Clone steps
+        foreach ($this->steps as $step) {
+            $newStep = $step->replicate();
+            $newStep->workflow_id = $newWorkflow->id;
+            $newStep->save();
+        }
+
+        return $newWorkflow;
+    }
+
+    public function getVersionHistoryAttribute()
+    {
+        return static::where('name', $this->name)
+            ->where('template_id', $this->template_id)
+            ->where('department_id', $this->department_id)
+            ->where('role_id', $this->role_id)
+            ->orderBy('version', 'desc')
+            ->get();
     }
 }

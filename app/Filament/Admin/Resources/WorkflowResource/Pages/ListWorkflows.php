@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Resources\WorkflowResource\Pages;
 
 use App\Filament\Admin\Resources\WorkflowResource;
+use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
 class ListWorkflows extends ListRecords
@@ -12,7 +13,7 @@ class ListWorkflows extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            \Filament\Actions\CreateAction::make(),
+            Actions\CreateAction::make(),
         ];
     }
 }
