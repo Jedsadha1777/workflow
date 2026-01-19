@@ -21,12 +21,13 @@ class TemplateDocument extends Model
         'pdf_orientation',
         'content',
         'calculation_scripts',
-        'is_active',
+        'expired_at',
+        'expired_reason',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
         'status' => TemplateStatus::class,
+        'expired_at' => 'datetime',
     ];
 
     protected function content(): Attribute
@@ -89,6 +90,30 @@ class TemplateDocument extends Model
             && $this->workflows()->exists();
     }
 
+    public function isExpired(): bool
+    {
+        return $this->expired_at !== null && $this->expired_at->lte(now());
+    }
+
+    public function canExpire(): bool
+    {
+        return $this->status === TemplateStatus::PUBLISHED 
+            && $this->expired_at === null;
+    }
+
+    public function expire(string $reason, ?\DateTime $expiredAt = null): void
+    {
+        if (!$this->canExpire()) {
+            throw new \Exception('Cannot expire this template');
+        }
+
+        $this->update([
+            'status' => TemplateStatus::ARCHIVED,
+            'expired_at' => $expiredAt ?? now(),
+            'expired_reason' => $reason,
+        ]);
+    }
+
     public function publish(): void
     {
         if (!$this->canPublish()) {
@@ -98,7 +123,11 @@ class TemplateDocument extends Model
         \DB::transaction(function () {
             if ($this->parent_id) {
                 TemplateDocument::where('id', $this->parent_id)
-                    ->update(['status' => TemplateStatus::ARCHIVED]);
+                    ->update([
+                        'status' => TemplateStatus::ARCHIVED,
+                        'expired_at' => now(),
+                        'expired_reason' => 'Superseded by version ' . $this->version,
+                    ]);
             }
 
             $this->update(['status' => TemplateStatus::PUBLISHED]);

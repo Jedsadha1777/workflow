@@ -27,7 +27,6 @@ class Settings extends Page
         
         $this->form->fill([
             'name' => $this->record->name,
-            'is_active' => $this->record->is_active,
             'calculation_scripts' => $this->record->calculation_scripts,
         ]);
     }
@@ -40,10 +39,7 @@ class Settings extends Page
                     Forms\Components\TextInput::make('name')
                         ->required()
                         ->maxLength(255),
-                    
-                    Forms\Components\Toggle::make('is_active')
-                        ->default(true),
-                ])->columns(2),
+                ])->columns(1),
 
                 Forms\Components\Section::make('Calculation Scripts')->schema([
                     Forms\Components\Textarea::make('calculation_scripts')
@@ -304,7 +300,6 @@ setValue("Sheet:Cell", value)  // Write value to a cell
         
         $this->record->update([
             'name' => $data['name'],
-            'is_active' => $data['is_active'],
             'calculation_scripts' => $data['calculation_scripts'],
         ]);
 

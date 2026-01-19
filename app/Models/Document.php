@@ -71,7 +71,12 @@ class Document extends Model
 
     public function isPending(): bool
     {
-        return $this->status === DocumentStatus::PENDING;
+        return in_array($this->status, [
+            DocumentStatus::PREPARE,
+            DocumentStatus::PENDING_CHECKING,
+            DocumentStatus::CHECKING,
+            DocumentStatus::PENDING,
+        ]);
     }
 
     public function isApproved(): bool
@@ -104,7 +109,7 @@ class Document extends Model
 
     public function canBeRecalledBy(User $user): bool
     {
-        if ($this->status !== DocumentStatus::PENDING) {
+        if (!$this->isPending()) {
             return false;
         }
 
@@ -167,6 +172,20 @@ class Document extends Model
                 'approved_at' => now(),
             ]);
         }
+    }
+
+    public function recallToDraft(): void
+    {
+        $this->update([
+            'status' => DocumentStatus::DRAFT,
+            'submitted_at' => null,
+        ]);
+
+        $this->approvers()->update([
+            'status' => \App\Enums\ApprovalStatus::PENDING,
+            'approved_at' => null,
+            'comment' => null,
+        ]);
     }
 
     public function setSignature(string $sheet, string $cell, int $userId): void

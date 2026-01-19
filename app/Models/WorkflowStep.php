@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StepType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
@@ -13,8 +14,8 @@ class WorkflowStep extends Model
         'step_order',
         'role_id',
         'department_id',
-        'step_type_id',
         'template_step_order',
+        'step_type',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class WorkflowStep extends Model
         return [
             'step_order' => 'integer',
             'template_step_order' => 'integer',
+            'step_type' => StepType::class,
         ];
     }
 
@@ -38,11 +40,6 @@ class WorkflowStep extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
-    }
-
-    public function stepType(): BelongsTo
-    {
-        return $this->belongsTo(WorkflowStepType::class, 'step_type_id');
     }
 
     public function findCandidates(): Collection

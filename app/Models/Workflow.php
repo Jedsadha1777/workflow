@@ -15,13 +15,11 @@ class Workflow extends Model
         'role_id',
         'version',
         'status',
-        'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
             'version' => 'integer',
         ];
     }
@@ -49,11 +47,6 @@ class Workflow extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 
     public function scopePublished($query)

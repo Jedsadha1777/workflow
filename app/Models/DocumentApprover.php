@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\ApprovalStatus;
+
+use App\Enums\StepType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,8 +14,7 @@ class DocumentApprover extends Model
         'document_id',
         'step_order',
         'role_id',
-        'department_id',
-        'step_type_id',
+        'step_type',
         'signature_cell',
         'approved_date_cell',
         'approver_id',
@@ -28,6 +29,7 @@ class DocumentApprover extends Model
     {
         return [
             'status' => ApprovalStatus::class,
+            'step_type' => StepType::class,
             'approved_at' => 'datetime',
         ];
     }
@@ -45,16 +47,6 @@ class DocumentApprover extends Model
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
-    }
-
-    public function department(): BelongsTo
-    {
-        return $this->belongsTo(Department::class);
-    }
-
-    public function stepType(): BelongsTo
-    {
-        return $this->belongsTo(WorkflowStepType::class, 'step_type_id');
     }
 
     public function isPending(): bool
@@ -92,9 +84,8 @@ class DocumentApprover extends Model
 
     public function getStepLabel(): string
     {
-        $typeName = $this->stepType->name ?? 'Step';
-        $roleName = $this->role->name ?? $this->approver_name ?? 'Unknown';
-        
-        return "{$typeName} by {$roleName}";
+         $typeName = $this->step_type?->label() ?? 'Step';
+         $roleName = $this->role->name ?? $this->approver_name ?? 'Unknown';
+         return "{$typeName} by {$roleName}";
     }
 }

@@ -13,7 +13,6 @@ class CreateWorkflow extends CreateRecord
     {
         $data['version'] = 1;
         $data['status'] = 'DRAFT';
-        $data['is_active'] = true;
 
         return $data;
     }

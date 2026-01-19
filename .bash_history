@@ -335,3 +335,11 @@ git commit -m "fixed bug"
 exit 
 php artisan migrate
 exit
+php artisan migrate
+php artisan migrate
+php artisan optimize:clear
+php artisan migrate
+php artisan migrate
+git add .
+git commit -m "fixed step type"
+exit

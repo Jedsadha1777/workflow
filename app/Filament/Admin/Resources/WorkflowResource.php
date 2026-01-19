@@ -7,8 +7,8 @@ use App\Models\Workflow;
 use App\Models\Department;
 use App\Models\Role;
 use App\Models\TemplateDocument;
-use App\Models\WorkflowStepType;
 use App\Enums\TemplateStatus;
+use App\Enums\StepType;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -52,7 +52,6 @@ class WorkflowResource extends Resource
                             ->label('Template')
                             ->options(
                                 TemplateDocument::where('status', TemplateStatus::PUBLISHED)
-                                    ->where('is_active', true)
                                     ->get()
                                     ->mapWithKeys(fn ($t) => [$t->id => "{$t->name} (v{$t->version})"])
                             )
@@ -78,11 +77,8 @@ class WorkflowResource extends Resource
                             ->required()
                             ->helperText('ตำแหน่งที่ใช้ workflow นี้ (ผู้สร้างเอกสาร)')
                             ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true),
                     ])
-                    ->columns(5),
+                    ->columns(4),
 
                 Forms\Components\Section::make('Template Signature/Date Positions')
                     ->description('ตำแหน่งลายเซ็นและวันที่ที่กำหนดไว้ใน Template (อ่านอย่างเดียว)')
@@ -172,13 +168,14 @@ class WorkflowResource extends Resource
                                 Forms\Components\Select::make('department_id')
                                     ->label('Approver Dept')
                                     ->options(Department::where('is_active', true)->pluck('name', 'id'))
-                                    ->placeholder('Any department')
+                                    ->placeholder('แผนกเดียวกับเอกสาร')
                                     ->native(false),
-                                Forms\Components\Select::make('step_type_id')
+                                Forms\Components\Select::make('step_type')
                                     ->label('Step Type')
-                                    ->options(WorkflowStepType::where('is_active', true)->pluck('name', 'id'))
+                                    ->options(StepType::class)
                                     ->required()
-                                    ->native(false),
+                                    ->native(false)
+                                    ->default(StepType::APPROVE),
                             ])
                             ->columns(4)
                             ->orderColumn('step_order')
@@ -203,7 +200,9 @@ class WorkflowResource extends Resource
                 Tables\Columns\TextColumn::make('template.name')
                     ->label('Template')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn ($record) => $record->template?->isExpired() ? 'Template หมดอายุ' : null)
+                    ->color(fn ($record) => $record->template?->isExpired() ? 'danger' : null),
                 Tables\Columns\TextColumn::make('department.name')
                     ->label('Department')
                     ->searchable()
@@ -230,16 +229,11 @@ class WorkflowResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean(),
                 Tables\Columns\TextColumn::make('steps_count')
                     ->counts('steps')
                     ->label('Steps'),
             ])
             ->filters([
-                Tables\Filters\TernaryFilter::make('is_active')
-                    ->label('Active'),
                 Tables\Filters\SelectFilter::make('department_id')
                     ->label('Department')
                     ->options(Department::pluck('name', 'id')),

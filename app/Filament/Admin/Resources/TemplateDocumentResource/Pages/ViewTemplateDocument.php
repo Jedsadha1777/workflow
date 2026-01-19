@@ -5,6 +5,7 @@ namespace App\Filament\Admin\Resources\TemplateDocumentResource\Pages;
 use App\Enums\TemplateStatus;
 use App\Filament\Admin\Resources\TemplateDocumentResource;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
@@ -43,7 +44,38 @@ class ViewTemplateDocument extends ViewRecord
                 );
         }
 
-        if ($this->record->status === TemplateStatus::PUBLISHED) {
+        if ($this->record->canExpire()) {
+            $actions[] = Actions\Action::make('expire')
+                ->label('Expire Template')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Expire Template')
+                ->modalDescription('This will prevent new documents from being created with this template. Existing documents in progress will continue to completion.')
+                ->form([
+                    Forms\Components\Textarea::make('expired_reason')
+                        ->label('Reason for expiring')
+                        ->required()
+                        ->rows(3),
+                    Forms\Components\DateTimePicker::make('expired_at')
+                        ->label('Expire at')
+                        ->default(now())
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    $this->record->expire(
+                        $data['expired_reason'],
+                        new \DateTime($data['expired_at'])
+                    );
+                })
+                ->successNotification(
+                    \Filament\Notifications\Notification::make()
+                        ->success()
+                        ->title('Template expired')
+                );
+        }
+
+        if ($this->record->status === TemplateStatus::PUBLISHED && !$this->record->isExpired()) {
             $actions[] = Actions\Action::make('archive')
                 ->label('Archive')
                 ->icon('heroicon-o-archive-box')
@@ -118,6 +150,19 @@ class ViewTemplateDocument extends ViewRecord
                     ])
                     ->columns(3),
 
+                Infolists\Components\Section::make('Expiration')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('expired_at')
+                            ->label('Expired At')
+                            ->dateTime('d/m/Y H:i')
+                            ->badge()
+                            ->color('danger'),
+                        Infolists\Components\TextEntry::make('expired_reason')
+                            ->label('Reason'),
+                    ])
+                    ->columns(2)
+                    ->visible(fn($record) => $record->expired_at !== null),
+
                 Infolists\Components\Section::make('Workflow')
                     ->schema([
                         Infolists\Components\RepeatableEntry::make('workflows')
@@ -162,6 +207,9 @@ class ViewTemplateDocument extends ViewRecord
                                         \App\Enums\TemplateStatus::PUBLISHED => '#d1fae5',
                                         \App\Enums\TemplateStatus::ARCHIVED => '#fef3c7',
                                     } . "'>{$ver->status->label()}</span>";
+                                    if ($ver->isExpired()) {
+                                        $html .= "<span class='text-xs px-2 py-1 rounded bg-red-100 text-red-700'>Expired</span>";
+                                    }
                                     $html .= "<span class='text-sm text-gray-500'>{$ver->documents()->count()} docs</span>";
                                     if ($isCurrent) {
                                         $html .= "<span class='text-xs text-blue-600 font-medium'>(Current)</span>";

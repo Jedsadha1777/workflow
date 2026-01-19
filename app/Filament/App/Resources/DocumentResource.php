@@ -13,6 +13,7 @@ use App\Models\Document;
 use App\Models\DocumentActivityLog;
 use App\Models\TemplateDocument;
 use App\Models\User;
+use App\Models\Workflow;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -35,7 +36,27 @@ class DocumentResource extends Resource
                 Forms\Components\Select::make('template_document_id')
                     ->label('Template')
                     ->options(function () {
+                        $user = auth()->user();
+                        $departmentId = $user->department_id;
+                        $roleId = $user->role_id;
+
+                        $templateIdsWithWorkflow = Workflow::where('department_id', $departmentId)
+                            ->where('role_id', $roleId)
+                            ->where('status', 'PUBLISHED')
+                            ->pluck('template_id')
+                            ->unique()
+                            ->toArray();
+
+                        if (empty($templateIdsWithWorkflow)) {
+                            return [];
+                        }
+
                         return TemplateDocument::where('status', TemplateStatus::PUBLISHED)
+                            ->whereIn('id', $templateIdsWithWorkflow)
+                            ->where(function ($query) {
+                                $query->whereNull('expired_at')
+                                    ->orWhere('expired_at', '>', now());
+                            })
                             ->select(['id', 'name', 'version'])
                             ->orderBy('name')
                             ->orderBy('version', 'desc')
@@ -54,7 +75,7 @@ class DocumentResource extends Resource
                         $livewire->dispatch('template-changed');
                     })
                     ->disabled(fn($record) => $record !== null)
-                    ->helperText('Only published templates are shown'),
+                    ->helperText('Only templates with published workflow for your department/role are shown'),
 
                 Forms\Components\TextInput::make('title')
                     ->required()
@@ -279,10 +300,15 @@ window.runCalculations_' . $formId . ' = function() {
                         ]);
 
                         $firstApprover = $record->approvers()->where('step_order', 1)->first();
-                        if ($firstApprover && $firstApprover->approver->email) {
-                            Mail::to($firstApprover->approver->email)
-                                ->queue(new DocumentSubmitted($record));
-                        }
+                        if ($firstApprover && $firstApprover->approver->email && $firstApprover->step_type?->shouldSendEmail()) {
+                            if ($firstApprover->step_type === \App\Enums\StepType::CHECKING) {
+                                Mail::to($firstApprover->approver->email)
+                                    ->queue(new \App\Mail\DocumentCheckingRequest($record));
+                            } else {
+                                Mail::to($firstApprover->approver->email)
+                                    ->queue(new DocumentSubmitted($record));
+                            }
+                         }
 
                         \Filament\Notifications\Notification::make()
                             ->success()

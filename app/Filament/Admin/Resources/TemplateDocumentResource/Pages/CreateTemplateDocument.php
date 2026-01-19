@@ -13,7 +13,6 @@ class CreateTemplateDocument extends CreateRecord
     {
         $data['version'] = 1;
         $data['status'] = \App\Enums\TemplateStatus::DRAFT;
-        $data['is_active'] = true;
         
         return $data;
     }

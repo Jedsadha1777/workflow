@@ -46,7 +46,6 @@ class TemplateDocumentResource extends Resource
                     ->required()
                     ->maxLength(255)
                     ->disabled(fn($record) => $record && !$record->canEdit()),
-                Forms\Components\Toggle::make('is_active')->default(true),
                 Forms\Components\TextInput::make('version')
                     ->disabled()
                     ->default(1)
@@ -57,7 +56,7 @@ class TemplateDocumentResource extends Resource
                     ->options(TemplateStatus::class)
                     ->default(TemplateStatus::DRAFT)
                     ->visible(fn($record) => $record !== null),
-            ])->columns(4),
+            ])->columns(3),
 
             Forms\Components\Section::make('Upload Excel File')->schema([
                 Forms\Components\FileUpload::make('excel_file')
@@ -208,15 +207,26 @@ HTML
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->select([
-                'id',
-                'name',
-                'version',
-                'status',
-                'is_active',
-                'created_at',
-                'updated_at',
-            ]))
+            ->modifyQueryUsing(fn(Builder $query) => $query
+                ->select([
+                    'id',
+                    'name',
+                    'version',
+                    'status',
+                    'expired_at',
+                    'created_at',
+                    'updated_at',
+                ])
+                ->orderBy('name')
+                // ->orderBy('version', 'desc')
+            )
+            ->groups([
+                Tables\Grouping\Group::make('name')
+                    ->label('Template Name')
+                    ->collapsible(),
+            ])
+            ->defaultGroup('name')
+            ->defaultSort('version', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
@@ -231,15 +241,14 @@ HTML
                     ->badge()
                     ->color(fn($state) => $state->color())
                     ->icon(fn($state) => $state->icon())
-                    ->sortable(),
-
+                    ->sortable()
+                    ->description(fn($record) => $record->expired_at ? $record->expired_at->format('d/m/Y H:i') : null),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
             ])
-
-
+            // ->defaultSort('name', 'desc')
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make(),
@@ -264,8 +273,7 @@ HTML
                             }
                         }),
                 ]),
-            ])
-            ->defaultSort('created_at', 'desc');
+            ]);
     }
 
 

@@ -67,8 +67,7 @@ class SetupApproval extends Page
             ->where('role_id', $roleId)
             ->where('template_id', $templateId)
             ->where('status', 'PUBLISHED')
-            ->where('is_active', true)
-            ->with(['steps.role', 'steps.department', 'steps.stepType'])
+            ->with(['steps.role', 'steps.department'])
             ->latest('version')
             ->first();
     }
@@ -101,7 +100,6 @@ class SetupApproval extends Page
                 'step_order' => $step->step_order,
                 'role' => $step->role,
                 'department' => $step->department,
-                'step_type' => $step->stepType,
                 'signature_cell' => $templateWorkflow?->signature_cell,
                 'approved_date_cell' => $templateWorkflow?->approved_date_cell,
                 'candidates' => $candidates,
@@ -120,9 +118,8 @@ class SetupApproval extends Page
         foreach ($this->workflowSteps as $step) {
             $key = "approver_{$step['step_order']}";
             $deptName = $step['department'] ? "({$step['department']->name})" : '(Any Dept)';
-            $stepTypeName = $step['step_type']->name ?? 'Step';
             $roleName = $step['role']->name ?? 'Unknown';
-            $label = "{$stepTypeName} by {$roleName} {$deptName}";
+            $label = "Step {$step['step_order']}: {$roleName} {$deptName}";
 
             if ($step['is_auto']) {
                 $schema[] = Forms\Components\TextInput::make($key)
@@ -184,7 +181,6 @@ class SetupApproval extends Page
                 'step_order' => $step['step_order'],
                 'role_id' => $step['role']->id,
                 'department_id' => $step['department']?->id,
-                'step_type_id' => $step['step_type']->id,
                 'signature_cell' => $step['signature_cell'],
                 'approved_date_cell' => $step['approved_date_cell'],
                 'approver_id' => $approver->id,

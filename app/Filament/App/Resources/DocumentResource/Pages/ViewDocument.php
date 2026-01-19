@@ -5,10 +5,13 @@ namespace App\Filament\App\Resources\DocumentResource\Pages;
 use App\Enums\ApprovalStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentActivityAction;
+use App\Enums\StepType;
 
 use App\Filament\App\Resources\DocumentResource;
 use App\Mail\DocumentApproved;
+use App\Mail\DocumentCheckingRequest;
 use App\Mail\DocumentRejected;
+use App\Mail\DocumentSubmitted;
 use App\Models\DocumentActivityLog;
 use Filament\Actions;
 use Filament\Forms;
@@ -178,9 +181,15 @@ class ViewDocument extends ViewRecord
                             ->where('step_order', $nextStep)
                             ->first();
                         
-                        if ($nextApprover && $nextApprover->approver->email) {
-                            Mail::to($nextApprover->approver->email)
-                                ->queue(new DocumentApproved($this->record, $currentApproval, false));
+                        if ($nextApprover && $nextApprover->approver->email && $nextApprover->step_type?->shouldSendEmail()) {
+                            if ($nextApprover->step_type === StepType::CHECKING) {
+                                Mail::to($nextApprover->approver->email)
+                                    ->queue(new DocumentCheckingRequest($this->record));
+                            } else {
+                                Mail::to($nextApprover->approver->email)
+                                    ->queue(new DocumentSubmitted($this->record));
+                            }
+
                         }
 
                         Notification::make()

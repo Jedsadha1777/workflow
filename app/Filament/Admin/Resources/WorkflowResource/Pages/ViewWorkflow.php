@@ -132,12 +132,10 @@ class ViewWorkflow extends ViewRecord
                                 Infolists\Components\TextEntry::make('department.name')
                                     ->label('Approver Dept')
                                     ->default('Any department'),
-                                Infolists\Components\TextEntry::make('stepType.name')
-                                    ->label('Type'),
                                 Infolists\Components\TextEntry::make('template_step_order')
                                     ->label('Template Step'),
                             ])
-                            ->columns(5),
+                            ->columns(4),
                     ])
                     ->visible(fn ($record) => $record->steps->count() > 0),
 
