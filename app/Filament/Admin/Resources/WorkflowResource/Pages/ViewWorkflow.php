@@ -131,15 +131,16 @@ class ViewWorkflow extends ViewRecord
                     ])
                     ->columns(4),
 
-                Infolists\Components\Section::make('Workflow Steps')
+                 Infolists\Components\Section::make('Workflow Steps')
                     ->schema([
                         Infolists\Components\RepeatableEntry::make('steps')
                             ->label('')
                             ->schema([
                                 Infolists\Components\TextEntry::make('step_order')
                                     ->label('Step'),
-                                Infolists\Components\TextEntry::make('role.name')
-                                    ->label('Approver Role')
+                                Infolists\Components\TextEntry::make('step_label')
+                                    ->label('Action')
+                                    ->state(fn($record) => ($record->step_type?->label() ?? 'Approve') . ' by ' . ($record->role->name ?? 'Unknown'))
                                     ->badge()
                                     ->color('info'),
                                 Infolists\Components\TextEntry::make('department.name')
@@ -150,7 +151,7 @@ class ViewWorkflow extends ViewRecord
                             ])
                             ->columns(4),
                     ])
-                    ->visible(fn ($record) => $record->steps->count() > 0),
+                    ->visible(fn($record) => $record->steps->count() > 0),
 
                 Infolists\Components\Section::make('Version History')
                     ->schema([
