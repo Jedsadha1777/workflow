@@ -51,13 +51,19 @@ class ViewDocument extends ViewRecord
                 ->columnSpanFull();
 
             $schema[] = Infolists\Components\RepeatableEntry::make('approvers')
-                ->label('Approval Steps')
+               ->label('Workflow Steps')
                 ->schema([
-                    Infolists\Components\TextEntry::make('step_order')->label('Step'),
-                    Infolists\Components\TextEntry::make('approver.name')->label('Approver'),
+                   Infolists\Components\TextEntry::make('step_label')
+                       ->label('Step')
+                       ->state(fn($record) => $record->getStepLabel()),
+                   Infolists\Components\TextEntry::make('approver.name')->label('Assigned To'),
                     Infolists\Components\TextEntry::make('status')
                         ->badge()
                         ->color(fn($state) => $state->color()),
+                   Infolists\Components\TextEntry::make('approved_at')
+                       ->label('Completed At')
+                       ->dateTime('d/m/Y H:i')
+                       ->visible(fn($record) => $record->approved_at !== null),
                     Infolists\Components\TextEntry::make('comment')
                         ->visible(fn($record) => !empty($record->comment)),
                 ])
@@ -129,12 +135,26 @@ class ViewDocument extends ViewRecord
             ->first();
 
         if ($currentApproval) {
+
+            $stepType = $currentApproval->step_type;
+           $actionLabel = match($stepType) {
+               StepType::PREPARE => 'Complete',
+               StepType::CHECKING => 'Verified',
+               default => 'Approve',
+           };
+           $modalHeading = match($stepType) {
+               StepType::PREPARE => 'Complete Preparation',
+               StepType::CHECKING => 'Verify Document',
+               default => 'Approve Document',
+           };
+
             $actions[] = Actions\Action::make('approve')
+               ->label($actionLabel) 
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->modalHeading('Approve Document')
-                ->modalDescription('Are you sure you want to approve this document?')
-                ->modalSubmitActionLabel('Approve')
+               ->modalHeading($modalHeading)
+               ->modalDescription("Are you sure you want to {$actionLabel} this document?")
+               ->modalSubmitActionLabel($actionLabel)
                 ->form([
                     Forms\Components\Textarea::make('comment')
                         ->label('Comment (Optional)')
@@ -172,7 +192,13 @@ class ViewDocument extends ViewRecord
                     if ($hasNextApprover) {
                         $this->record->update(['current_step' => $nextStep]);
 
-                        DocumentActivityLog::log($this->record, DocumentActivityAction::APPROVED, null, [
+                        $activityAction = match($currentApproval->step_type) {
+                            StepType::PREPARE => DocumentActivityAction::PREPARED,
+                            StepType::CHECKING => DocumentActivityAction::CHECKED,
+                            default => DocumentActivityAction::APPROVED,
+                        };
+
+                        DocumentActivityLog::log($this->record, $activityAction, null, [
                             'step_order' => $currentApproval->step_order,
                             'comment' => $data['comment'] ?? null,
                         ]);
@@ -205,7 +231,13 @@ class ViewDocument extends ViewRecord
                             'approved_at' => now(),
                         ]);
 
-                        DocumentActivityLog::log($this->record, DocumentActivityAction::APPROVED, null, [
+                        $activityAction = match($currentApproval->step_type) {
+                            StepType::PREPARE => DocumentActivityAction::PREPARED,
+                            StepType::CHECKING => DocumentActivityAction::CHECKED,
+                            default => DocumentActivityAction::APPROVED,
+                        };
+
+                        DocumentActivityLog::log($this->record, $activityAction, null, [     
                             'old_status' => $oldStatus->value,
                             'new_status' => DocumentStatus::APPROVED->value,
                             'step_order' => $currentApproval->step_order,
@@ -227,53 +259,55 @@ class ViewDocument extends ViewRecord
                     return redirect($this->getResource()::getUrl('index'));
                 });
 
-            $actions[] = Actions\Action::make('reject')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->modalHeading('Reject Document')
-                ->modalDescription('Are you sure you want to reject this document?')
-                ->modalSubmitActionLabel('Reject')
-                ->form([
-                    Forms\Components\Textarea::make('comment')
-                        ->label('Reason for Rejection')
-                        ->required()
-                        ->rows(3),
-                ])
-                ->action(function (array $data) use ($currentApproval) {
-                    $currentApproval->update([
-                        'status' => ApprovalStatus::REJECTED,
-                        'rejected_at' => now(),
-                        'comment' => $data['comment'],
-                    ]);
 
-                    $oldStatus = $this->record->status;
+           if ($stepType === StepType::APPROVE) {
+               $actions[] = Actions\Action::make('reject')
+                   ->icon('heroicon-o-x-circle')
+                   ->color('danger')
+                   ->modalHeading('Reject Document')
+                   ->modalDescription('Are you sure you want to reject this document?')
+                   ->modalSubmitActionLabel('Reject')
+                   ->form([
+                       Forms\Components\Textarea::make('comment')
+                           ->label('Reason for Rejection')
+                           ->required()
+                           ->rows(3),
+                   ])
+                   ->action(function (array $data) use ($currentApproval) {
+                       $currentApproval->update([
+                           'status' => ApprovalStatus::REJECTED,
+                           'rejected_at' => now(),
+                           'comment' => $data['comment'],
+                       ]);
 
-                    $this->record->update([
-                        'status' => DocumentStatus::REJECTED,
-                    ]);
+                       $oldStatus = $this->record->status;
 
-                    DocumentActivityLog::log($this->record, DocumentActivityAction::REJECTED, null, [
-                        'old_status' => $oldStatus->value,
-                        'new_status' => DocumentStatus::REJECTED->value,
-                        'step_order' => $currentApproval->step_order,
-                        'comment' => $data['comment'],
-                    ]);
+                       $this->record->update([
+                           'status' => DocumentStatus::REJECTED,
+                       ]);
 
-                    if ($this->record->creator->email) {
-                        Mail::to($this->record->creator->email)
-                            ->queue(new DocumentRejected($this->record, $currentApproval));
-                    }
+                       DocumentActivityLog::log($this->record, DocumentActivityAction::REJECTED, null, [
+                           'old_status' => $oldStatus->value,
+                           'new_status' => DocumentStatus::REJECTED->value,
+                           'step_order' => $currentApproval->step_order,
+                           'comment' => $data['comment'],
+                       ]);
 
-                    Notification::make()
-                        ->success()
-                        ->title('Document Rejected')
-                        ->body('The document has been rejected.')
-                        ->send();
+                       if ($this->record->creator->email) {
+                           Mail::to($this->record->creator->email)
+                               ->queue(new DocumentRejected($this->record, $currentApproval));
+                       }
 
-                    return redirect($this->getResource()::getUrl('index'));
-                });
+                       Notification::make()
+                           ->success()
+                           ->title('Document Rejected')
+                           ->body('The document has been rejected.')
+                           ->send();
+
+                       return redirect($this->getResource()::getUrl('index'));
+                   });
+           }
         }
-
 
         $actions[] = Actions\Action::make('back')
             ->label('Return to List')

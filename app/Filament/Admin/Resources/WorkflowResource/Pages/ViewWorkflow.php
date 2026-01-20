@@ -26,24 +26,37 @@ class ViewWorkflow extends ViewRecord
         }
 
         if ($this->record->canPublish()) {
-            $actions[] = Actions\Action::make('publish')
-                ->label('Publish Workflow')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalHeading('Publish Workflow')
-                ->modalDescription('Once published, this workflow cannot be edited. Other published versions will be archived. Are you sure?')
-                ->action(function () {
-                    $this->record->publish();
+            $templateExpired = $this->record->template?->isExpired();
+            
+             $actions[] = Actions\Action::make('publish')
+                 ->label('Publish Workflow')
+                 ->icon('heroicon-o-check-circle')
+                 ->color('success')
+                 ->requiresConfirmation()
+                 ->modalHeading('Publish Workflow')
+                 ->modalDescription('Once published, this workflow cannot be edited. Other published versions will be archived. Are you sure?')
+                ->disabled($templateExpired)
+                ->tooltip($templateExpired ? 'Cannot publish: Template has expired' : null)
+                 ->action(function () {
+                    if ($this->record->template?->isExpired()) {
+                        \Filament\Notifications\Notification::make()
+                            ->danger()
+                            ->title('Cannot publish')
+                            ->body('Template has expired. Please use a different template.')
+                            ->send();
+                        return;
+                    }
 
-                    \Filament\Notifications\Notification::make()
-                        ->success()
-                        ->title('Workflow published successfully')
-                        ->send();
+                     $this->record->publish();
 
-                    $this->redirect(static::getResource()::getUrl('view', ['record' => $this->record]));
-                });
-        }
+                     \Filament\Notifications\Notification::make()
+                         ->success()
+                         ->title('Workflow published successfully')
+                         ->send();
+
+                     $this->redirect(static::getResource()::getUrl('view', ['record' => $this->record]));
+                 });
+         }
 
         if ($this->record->canArchive()) {
             $actions[] = Actions\Action::make('archive')

@@ -48,9 +48,9 @@ class UserResource extends Resource
                             ->preload(),
                         Forms\Components\TextInput::make('password')
                             ->password()
-                            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
-                            ->dehydrated(fn ($state) => filled($state))
-                            ->required(fn (string $context): bool => $context === 'create')
+                            ->dehydrateStateUsing(fn($state) => Hash::make($state))
+                            ->dehydrated(fn($state) => filled($state))
+                            ->required(fn(string $context): bool => $context === 'create')
                             ->maxLength(255),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')
@@ -85,7 +85,7 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('role.name')
                     ->label('Role')
                     ->badge()
-                    ->color(fn ($record) => $record->role?->is_admin ? 'danger' : 'primary')
+                    ->color(fn($record) => $record->role?->is_admin ? 'danger' : 'primary')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('department.name')
@@ -111,13 +111,22 @@ class UserResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->hidden(fn($record) => $record->id === auth()->id()),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                Tables\Actions\DeleteBulkAction::make()
+                        ->before(function ($records, Tables\Actions\DeleteBulkAction $action) {
+                            if ($records->contains('id', auth()->id())) {
+                                \Filament\Notifications\Notification::make()
+                                   ->danger()
+                                    ->title('Cannot delete yourself')
+                                    ->send();
+                                $action->cancel();
+                            }
+                        }),
             ])
+            ->checkIfRecordIsSelectableUsing(fn ($record) => $record->id !== auth()->id())
             ->defaultSort('name');
     }
 

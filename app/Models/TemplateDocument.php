@@ -154,6 +154,8 @@ class TemplateDocument extends Model
                 'version',
                 'status',
                 'parent_id',
+                'expired_at',
+                'expired_reason',
             ]);
 
             $newVersion->version = $this->version + 1;

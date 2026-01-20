@@ -15,6 +15,7 @@ class Workflow extends Model
         'role_id',
         'version',
         'status',
+        'parent_id',
     ];
 
     protected function casts(): array
@@ -37,6 +38,16 @@ class Workflow extends Model
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Workflow::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(Workflow::class, 'parent_id');
     }
 
     public function steps(): HasMany
@@ -80,13 +91,20 @@ class Workflow extends Model
             return false;
         }
 
-        static::where('name', $this->name)
-            ->where('template_id', $this->template_id)
-            ->where('department_id', $this->department_id)
-            ->where('role_id', $this->role_id)
-            ->where('id', '!=', $this->id)
-            ->where('status', 'PUBLISHED')
-            ->update(['status' => 'ARCHIVED']);
+        // Archive parent if published
+        if ($this->parent_id) {
+            static::where('id', $this->parent_id)
+                ->where('status', 'PUBLISHED')
+                ->update(['status' => 'ARCHIVED']);
+        }
+
+        // Archive any siblings that are published (same parent)
+        if ($this->parent_id) {
+            static::where('parent_id', $this->parent_id)
+                ->where('id', '!=', $this->id)
+                ->where('status', 'PUBLISHED')
+                ->update(['status' => 'ARCHIVED']);
+        }
 
         $this->status = 'PUBLISHED';
         return $this->save();
@@ -104,15 +122,32 @@ class Workflow extends Model
 
     public function createNewVersion(): static
     {
-        $maxVersion = static::where('name', $this->name)
-            ->where('template_id', $this->template_id)
-            ->where('department_id', $this->department_id)
-            ->where('role_id', $this->role_id)
-            ->max('version');
-
         $newWorkflow = $this->replicate();
-        $newWorkflow->version = ($maxVersion ?? 0) + 1;
+        $newWorkflow->version = $this->version + 1;
         $newWorkflow->status = 'DRAFT';
+        $newWorkflow->parent_id = $this->id;
+
+        // Check if current template is expired or has newer published version
+        $currentTemplate = $this->template;
+        if ($currentTemplate) {
+            $newerTemplate = \App\Models\TemplateDocument::where('name', $currentTemplate->name)
+                ->where('status', \App\Enums\TemplateStatus::PUBLISHED)
+                ->where('id', '!=', $currentTemplate->id)
+                ->where(function ($query) {
+                    $query->whereNull('expired_at')
+                        ->orWhere('expired_at', '>', now());
+                })
+                ->orderBy('version', 'desc')
+                ->first();
+
+            // If current template expired or newer exists, check if workflow positions match
+            if ($newerTemplate && ($currentTemplate->isExpired() || $newerTemplate->version > $currentTemplate->version)) {
+                if ($this->templateWorkflowsMatch($currentTemplate, $newerTemplate)) {
+                    $newWorkflow->template_id = $newerTemplate->id;
+                }
+            }
+        }
+
         $newWorkflow->save();
 
         foreach ($this->steps as $step) {
@@ -124,13 +159,59 @@ class Workflow extends Model
         return $newWorkflow;
     }
 
+    protected function templateWorkflowsMatch(TemplateDocument $oldTemplate, TemplateDocument $newTemplate): bool
+    {
+        $oldWorkflows = $oldTemplate->workflows()->orderBy('step_order')->get();
+        $newWorkflows = $newTemplate->workflows()->orderBy('step_order')->get();
+
+        if ($oldWorkflows->count() !== $newWorkflows->count()) {
+            return false;
+        }
+
+        foreach ($oldWorkflows as $index => $oldWf) {
+            $newWf = $newWorkflows[$index] ?? null;
+            if (!$newWf) {
+                return false;
+            }
+
+            if (
+                $oldWf->signature_cell !== $newWf->signature_cell ||
+                $oldWf->approved_date_cell !== $newWf->approved_date_cell
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function getVersionHistoryAttribute()
     {
-        return static::where('name', $this->name)
-            ->where('template_id', $this->template_id)
-            ->where('department_id', $this->department_id)
-            ->where('role_id', $this->role_id)
-            ->orderBy('version', 'desc')
-            ->get();
+        $versions = collect([$this]);
+
+        // Get all ancestors
+        $current = $this;
+        while ($current->parent) {
+            $versions->push($current->parent);
+            $current = $current->parent;
+        }
+
+        // Get all descendants from root
+        $root = $versions->last();
+        $allDescendants = $this->getAllDescendants($root);
+
+        return $versions->merge($allDescendants)->unique('id')->sortByDesc('version')->values();
+    }
+
+    protected function getAllDescendants(Workflow $workflow): \Illuminate\Support\Collection
+    {
+        $descendants = collect();
+
+        foreach ($workflow->children as $child) {
+            $descendants->push($child);
+            $descendants = $descendants->merge($this->getAllDescendants($child));
+        }
+
+        return $descendants;
     }
 }

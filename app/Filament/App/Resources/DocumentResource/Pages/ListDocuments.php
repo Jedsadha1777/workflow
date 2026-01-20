@@ -36,6 +36,7 @@ class ListDocuments extends ListRecords
         if ($activeTab === 'pending_my_approval') {
             $ids = DB::table('documents')
                 ->select('documents.id')
+                ->where('documents.status', DocumentStatus::PENDING->value)
                 ->whereExists(function ($q) use ($user) {
                     $q->selectRaw('1')
                         ->from('document_approvers')
@@ -91,22 +92,28 @@ class ListDocuments extends ListRecords
         }
 
         return [
-            'all' => Tab::make('All Documents')
-                ->modifyQueryUsing(function (Builder $query) use ($user) {
-                    return $query->where(function ($q) use ($user) {
-                        $q->where('documents.creator_id', $user->id)
+             'all' => Tab::make('All Documents')
+                 ->modifyQueryUsing(function (Builder $query) use ($user) {
+                     return $query->where(function ($q) use ($user) {
+                         $q->where('documents.creator_id', $user->id)
                             ->orWhere(function ($q) use ($user) {
-                                $q->where('documents.department_id', $user->department_id)
-                                    ->where('documents.status', DocumentStatus::DRAFT->value);
+                                $q->where('documents.status', DocumentStatus::PENDING->value)
+                                    ->whereExists(function ($q) use ($user) {
+                                        $q->selectRaw('1')
+                                            ->from('document_approvers')
+                                            ->whereColumn('document_approvers.document_id', 'documents.id')
+                                            ->where('document_approvers.approver_id', $user->id);
+                                    });
                             })
                             ->orWhereExists(function ($q) use ($user) {
-                                $q->selectRaw('1')
-                                    ->from('document_approvers')
-                                    ->whereColumn('document_approvers.document_id', 'documents.id')
-                                    ->where('document_approvers.approver_id', $user->id);
-                            });
-                    })->orderBy('documents.id', 'desc');
-                }),
+                                 $q->selectRaw('1')
+                                     ->from('document_approvers')
+                                     ->whereColumn('document_approvers.document_id', 'documents.id')
+                                    ->where('document_approvers.approver_id', $user->id)
+                                    ->where('document_approvers.status', ApprovalStatus::APPROVED->value);
+                             });
+                     })->orderBy('documents.id', 'desc');
+                 }),
             'my_documents' => Tab::make('My Documents')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('documents.creator_id', $user->id)->orderBy('documents.id', 'desc')),
             'pending_my_approval' => Tab::make('Pending My Approval')

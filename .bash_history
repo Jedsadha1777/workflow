@@ -343,3 +343,5 @@ php artisan migrate
 git add .
 git commit -m "fixed step type"
 exit
+php artisan migrate
+exit

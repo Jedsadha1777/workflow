@@ -37,17 +37,18 @@ class ViewDocument extends ViewRecord
                     ->view('filament.pages.view-document-content')
                     ->columnSpanFull(),
                 Infolists\Components\RepeatableEntry::make('approvers')
-                    ->label('Approval Steps')
+                    ->label('Workflow Steps') 
                     ->schema([
-                        Infolists\Components\TextEntry::make('step_order')
-                            ->label('Step'),
+                        Infolists\Components\TextEntry::make('step_label')
+                            ->label('Step')
+                            ->state(fn($record) => $record->getStepLabel()),
                         Infolists\Components\TextEntry::make('approver.name')
-                            ->label('Approver'),
+                            ->label('Assigned To'),  
                         Infolists\Components\TextEntry::make('status')
                             ->badge()
                             ->color(fn ($state) => $state->color()),
                         Infolists\Components\TextEntry::make('approved_at')
-                            ->label('Approved At')
+                            ->label('Completed At')  
                             ->dateTime('d/m/Y H:i')
                             ->visible(fn($record) => $record->approved_at !== null),
                         Infolists\Components\TextEntry::make('rejected_at')

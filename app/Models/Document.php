@@ -130,16 +130,28 @@ class Document extends Model
             return 'full';
         }
 
-        $isApprover = $this->approvers()
-            ->where('approver_id', $user->id)
-            ->exists();
+        // ถึง step ของเราและเอกสารยัง PENDING อยู่
+        if ($this->isPending()) {
+            $isCurrentApprover = $this->approvers()
+                ->where('approver_id', $user->id)
+                ->where('step_order', $this->current_step)
+                ->exists();
+        } else {
+            $isCurrentApprover = false;
+        }
 
-        if ($isApprover) {
+        if ($isCurrentApprover) {
             return 'full';
         }
 
-        if ($this->department_id === $user->department_id) {
-            return 'limited';
+        // เคย approve ไปแล้ว
+        $hasApproved = $this->approvers()
+            ->where('approver_id', $user->id)
+            ->where('status', \App\Enums\ApprovalStatus::APPROVED)
+            ->exists();
+
+        if ($hasApproved) {
+            return 'full';
         }
 
         return 'none';
