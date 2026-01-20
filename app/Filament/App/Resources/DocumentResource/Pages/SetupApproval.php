@@ -282,6 +282,7 @@ class SetupApproval extends Page
             'status' => DocumentStatus::PENDING,
             'submitted_at' => now(),
             'workflow_id' => $this->workflow->id,
+            'current_step' => 1,
         ]);
 
         DocumentActivityLog::log($this->document, DocumentActivityAction::SUBMITTED, null, [
