@@ -270,16 +270,6 @@ curl -X POST http://localhost:8000/api/ask \
 - Benefits information
 - Onboarding questions
 
-### 4. **Healthcare Clinic**
-- Appointment booking info
-- Service descriptions
-- Insurance questions
-
-### 5. **Education Portal**
-- Course information
-- Enrollment process
-- Schedule inquiries
-
 ---
 
 ## Integration Examples
