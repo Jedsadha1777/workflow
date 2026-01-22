@@ -1,0 +1,16 @@
+# Core
+fastapi==0.115.0
+uvicorn==0.30.0
+pydantic==2.9.0
+
+# OpenAI (Layer 2) - pin httpx to avoid proxy error
+openai==1.50.0
+httpx==0.27.0
+
+# FAISS - requires numpy<2
+faiss-cpu==1.7.4
+numpy>=1.24.0,<2.0.0
+
+# Redis
+redis==5.1.0
+fakeredis==2.24.1
