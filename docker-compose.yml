@@ -95,16 +95,8 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8000"    # Port 8001 (ไม่ชนกับ nginx:8000)
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MODEL=${FAQBOT_MODEL:-gpt-4o-mini}
-      - REDIS_URL=redis://faqbot-redis:6379/0
-      - KNOWLEDGE_FILE=/data/knowledge/knowledge.json
-      - RATE_LIMIT_PER_MINUTE=20
-      - RATE_LIMIT_PER_DAY=100
-      - DAILY_BUDGET_USD=${FAQBOT_DAILY_BUDGET:-10.0}
-      - LLM_CACHE_TTL=3600
-      - MAX_QUESTION_LENGTH=200
+    env_file:
+      - ./faqbot/.env  
     volumes:
       - ./faqbot/knowledge:/data/knowledge
     networks:
