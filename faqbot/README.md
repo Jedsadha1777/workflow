@@ -446,6 +446,3 @@ faqbot/
 
 ---
 
-## License
-
-MIT
