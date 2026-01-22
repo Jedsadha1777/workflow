@@ -29,16 +29,16 @@ A cost-efficient, self-hosted FAQ chatbot that combines Knowledge Base search wi
 
 ```mermaid
 flowchart TD
-    subgraph Input["🔒 Input Layer"]
+    subgraph Input["Input Layer"]
         A[User Question] --> B{Validate}
-        B -->|Invalid| B1[❌ Reject]
+        B -->|Invalid| B1[Reject]
         B -->|Valid| C{Rate Limit}
-        C -->|Exceeded| C1[⏳ 429 Error]
+        C -->|Exceeded| C1[429 Error]
         C -->|OK| D{Small Talk?}
     end
 
-    subgraph Search["🔍 Search Layer"]
-        D -->|Yes| D1[💬 Instant Reply]
+    subgraph Search["Search Layer"]
+        D -->|Yes| D1[Instant Reply]
         D -->|No| E[Hybrid Search]
         E --> F[FAISS Semantic]
         E --> G[Keyword Match]
@@ -46,33 +46,29 @@ flowchart TD
         G --> H
     end
 
-    subgraph Decision["⚡ Decision Layer"]
+    subgraph Decision["Decision Layer"]
         H --> I{Score ≥ 0.7?}
-        I -->|Yes| J[✅ Direct Answer<br/>FREE]
+        I -->|Yes| J[Direct Answer<br/>FREE]
         I -->|No| K{Cache Hit?}
-        K -->|Yes| L[✅ Cached Answer<br/>FREE]
+        K -->|Yes| L[Cached Answer<br/>FREE]
         K -->|No| M{Budget OK?}
     end
 
-    subgraph LLM["🤖 LLM Layer"]
-        M -->|No| N[📚 Fallback to KB Top]
+    subgraph LLM["LLM Layer"]
+        M -->|No| N[Fallback to KB Top]
         M -->|Yes| O[Call GPT-4o-mini]
         O --> P[Cache Result]
         O --> Q[Track Cost]
     end
 
-    subgraph Output["📤 Output"]
+    subgraph Output[" Output"]
         J --> R[Response]
         L --> R
         N --> R
         P --> R
     end
 
-    style Input fill:#e1f5fe
-    style Search fill:#fff3e0
-    style Decision fill:#f3e5f5
-    style LLM fill:#ffebee
-    style Output fill:#e8f5e9
+
 ```
 
 ---
