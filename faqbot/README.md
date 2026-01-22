@@ -33,7 +33,7 @@ flowchart TD
         A[User Question] --> B{Validate}
         B -->|Invalid| B1[Reject]
         B -->|Valid| C{Rate Limit}
-        C -->|Exceeded| C1[⏳ 429 Error]
+        C -->|Exceeded| C1[429 Error]
         C -->|OK| D{Small Talk?}
     end
 
@@ -46,7 +46,7 @@ flowchart TD
         G --> H
     end
 
-    subgraph Decision["⚡ Decision Layer"]
+    subgraph Decision["Decision Layer"]
         H --> I{Score ≥ 0.7?}
         I -->|Yes| J[Direct Answer<br/>FREE]
         I -->|No| K{Cache Hit?}
@@ -54,8 +54,8 @@ flowchart TD
         K -->|No| M{Budget OK?}
     end
 
-    subgraph LLM["🤖 LLM Layer"]
-        M -->|No| N[📚 Fallback to KB Top]
+    subgraph LLM["LLM Layer"]
+        M -->|No| N[Fallback to KB Top]
         M -->|Yes| O[Call GPT-4o-mini]
         O --> P[Cache Result]
         O --> Q[Track Cost]
