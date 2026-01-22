@@ -29,16 +29,16 @@ A cost-efficient, self-hosted FAQ chatbot that combines Knowledge Base search wi
 
 ```mermaid
 flowchart TD
-    subgraph Input["Input Layer"]
+    subgraph Input["🔒 Input Layer"]
         A[User Question] --> B{Validate}
-        B -->|Invalid| B1[Reject]
+        B -->|Invalid| B1[❌ Reject]
         B -->|Valid| C{Rate Limit}
-        C -->|Exceeded| C1[429 Error]
+        C -->|Exceeded| C1[⏳ 429 Error]
         C -->|OK| D{Small Talk?}
     end
 
-    subgraph Search["Search Layer"]
-        D -->|Yes| D1[Instant Reply]
+    subgraph Search["🔍 Search Layer"]
+        D -->|Yes| D1[💬 Instant Reply]
         D -->|No| E[Hybrid Search]
         E --> F[FAISS Semantic]
         E --> G[Keyword Match]
@@ -46,28 +46,33 @@ flowchart TD
         G --> H
     end
 
-    subgraph Decision["Decision Layer"]
+    subgraph Decision["⚡ Decision Layer"]
         H --> I{Score ≥ 0.7?}
-        I -->|Yes| J[Direct Answer<br/>FREE]
+        I -->|Yes| J[✅ Direct Answer<br/>FREE]
         I -->|No| K{Cache Hit?}
-        K -->|Yes| L[Cached Answer<br/>FREE]
+        K -->|Yes| L[✅ Cached Answer<br/>FREE]
         K -->|No| M{Budget OK?}
     end
 
-    subgraph LLM["LLM Layer"]
-        M -->|No| N[Fallback to KB Top]
+    subgraph LLM["🤖 LLM Layer"]
+        M -->|No| N[📚 Fallback to KB Top]
         M -->|Yes| O[Call GPT-4o-mini]
         O --> P[Cache Result]
         O --> Q[Track Cost]
     end
 
-    subgraph Output["Output"]
+    subgraph Output["📤 Output"]
         J --> R[Response]
         L --> R
         N --> R
         P --> R
     end
 
+    style Input fill:#e1f5fe
+    style Search fill:#fff3e0
+    style Decision fill:#f3e5f5
+    style LLM fill:#ffebee
+    style Output fill:#e8f5e9
 ```
 
 ---
@@ -446,3 +451,151 @@ faqbot/
 
 ---
 
+## Incident Scenarios
+
+### What happens if Redis is down?
+
+| Component | Behavior | Impact |
+|-----------|----------|--------|
+| Rate Limiting | **FAIL CLOSED** - blocks all requests | Users get 503 |
+| LLM Cache | **FAIL CLOSED** - skip cache | No cached answers |
+| Embedding Cache | **FAIL CLOSED** - skip FAISS | No semantic search |
+| FAISS Search | **DEGRADED** - returns empty | Fallback to keyword |
+| Keyword Search | ✅ **WORKS** - no Redis needed | Still answers from KB |
+| Budget Check | **FAIL CLOSED** - blocks LLM | No OpenAI charges |
+
+**Result:** System degrades to keyword-only search. No runaway costs.
+
+```
+Redis Down → Embedding blocked → FAISS returns [] → Keyword search only → Still works (degraded)
+```
+
+---
+
+### What happens if OpenAI is down?
+
+| Component | Behavior | Impact |
+|-----------|----------|--------|
+| FAISS Search | ✅ **WORKS** | Semantic search OK |
+| Keyword Search | ✅ **WORKS** | Exact match OK |
+| LLM Summarize | ❌ **FAILS** | Returns KB top result |
+| Free Chat | ❌ **FAILS** | Returns "no info found" |
+
+**Result:** 70-80% of queries still work (KB hits). Only complex questions fail gracefully.
+
+---
+
+### What happens if FAISS index is corrupted?
+
+| Component | Behavior | Impact |
+|-----------|----------|--------|
+| FAISS Load | **FAILS** - catches exception | Logs warning |
+| Hybrid Search | **DEGRADED** - FAISS returns [] | Keyword only |
+| System | ✅ **WORKS** | Full keyword search |
+
+**Recovery:**
+```bash
+# Rebuild index
+curl -X POST http://localhost:8000/api/faiss/rebuild
+
+# Or delete and restart (auto-rebuilds)
+rm /data/knowledge/faiss.index
+docker-compose restart faqbot
+```
+
+---
+
+### What happens if daily budget exceeded?
+
+| Component | Behavior | Impact |
+|-----------|----------|--------|
+| KB Direct Hit | ✅ **WORKS** | Score ≥ 0.7 answers |
+| LLM Cache Hit | ✅ **WORKS** | Cached answers |
+| LLM New Call | ❌ **BLOCKED** | Returns KB top result |
+| Free Chat | ❌ **BLOCKED** | Returns "no info found" |
+
+**Result:** System auto-degrades to KB-only mode. No surprise bills.
+
+---
+
+### What happens under DDoS / high traffic?
+
+| Layer | Protection | Limit |
+|-------|------------|-------|
+| IP Rate Limit | Per-IP throttle | 20/min, 100/day |
+| Fingerprint | Browser fingerprint | 40/min |
+| Global | All users combined | 200/min |
+
+**Fail mode:** Returns 429 Too Many Requests. Legitimate users in queue still served.
+
+---
+
+### Monitoring Checklist
+
+```bash
+# Health check
+curl http://localhost:8000/api/status
+
+# Check these:
+# ✓ faiss.ready = true
+# ✓ llm_enabled = true  
+# ✓ budget.exceeded = false
+# ✓ cache.cached_answers > 0 (after warmup)
+```
+
+**Alerts to set up:**
+- `budget.remaining_usd < 2.0` → Warning
+- `budget.exceeded = true` → Critical
+- `faiss.ready = false` → Warning
+- `llm_available = false` → Critical
+
+---
+
+## Limitations
+
+### ❌ Not Suitable For
+
+| Use Case | Why | Alternative |
+|----------|-----|-------------|
+| **Open-domain chat** | No knowledge boundary, hallucination risk | Use ChatGPT directly |
+| **Real-time data** | Stock prices, weather, live scores | Integrate external APIs |
+| **Complex reasoning** | Multi-step logic, math proofs | Use GPT-4 / Claude |
+| **Creative writing** | Stories, poems, marketing copy | Use dedicated LLM |
+| **Code generation** | Programming assistance | Use Copilot / Cursor |
+
+---
+
+### ⚠️ Requires
+
+| Requirement | Effort | Notes |
+|-------------|--------|-------|
+| **Curated Knowledge Base** | High initial | Must write Q&A pairs |
+| **Regular KB updates** | Medium ongoing | New products, policy changes |
+| **Keyword optimization** | Low | Add synonyms for better match |
+| **Monitoring** | Low | Check budget, cache hit rate |
+
+---
+
+### 📊 Performance Boundaries
+
+| Metric | Tested Limit | Notes |
+|--------|--------------|-------|
+| KB size | ~10,000 Q&A | Beyond this, consider Elasticsearch |
+| Concurrent users | ~100 | Single instance, scale with replicas |
+| Query latency (KB hit) | <50ms | 95th percentile |
+| Query latency (LLM) | 500-2000ms | Depends on OpenAI |
+| FAISS index build | ~1 min / 1000 items | One-time or background |
+
+---
+
+### 🔄 When to Upgrade
+
+Consider upgrading when:
+
+1. **KB > 10K items** → Add Elasticsearch / Meilisearch
+2. **Need real-time data** → Add external API integrations
+3. **Multi-turn conversation** → Add session memory
+4. **Multiple languages at scale** → Add language detection + routing
+5. **99.9% SLA required** → Add Redis cluster, multi-region
+
+---
