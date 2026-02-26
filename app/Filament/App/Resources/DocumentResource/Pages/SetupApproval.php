@@ -52,7 +52,7 @@ class SetupApproval extends Page
             Notification::make()
                 ->danger()
                 ->title('No workflow configured')
-                ->body('There is no published workflow for this template and department. Please contact administrator.')
+                ->body('There is no published workflow for this template and division. Please contact administrator.')
                 ->persistent()
                 ->send();
 
@@ -82,14 +82,14 @@ class SetupApproval extends Page
     protected function findWorkflow(): ?Workflow
     {
         $templateId = $this->document->template_document_id;
-        $departmentId = auth()->user()->department_id;
+        $divisionId = auth()->user()->division_id;
         $roleId = auth()->user()->role_id;
 
-        return Workflow::where('department_id', $departmentId)
+        return Workflow::where('division_id', $divisionId)
             ->where('role_id', $roleId)
             ->where('template_id', $templateId)
             ->where('status', 'PUBLISHED')
-            ->with(['steps.role', 'steps.department'])
+            ->with(['steps.role', 'steps.division'])
             ->latest('version')
             ->first();
     }
@@ -102,7 +102,7 @@ class SetupApproval extends Page
             $candidates = $step->findCandidates();
 
             if ($candidates->count() === 0) {
-                $deptName = $step->department ? $step->department->name : 'any department';
+                $deptName = $step->division ? $step->division->name : 'any division';
                 $roleName = $step->role->name ?? 'Unknown Role';
 
                 Notification::make()
@@ -121,7 +121,7 @@ class SetupApproval extends Page
             $steps[] = [
                 'step_order' => $step->step_order,
                 'role' => $step->role,
-                'department' => $step->department,
+                'division' => $step->division,
                 'step_type' => $step->step_type,
                 'signature_cell' => $templateWorkflow?->signature_cell,
                 'approved_date_cell' => $templateWorkflow?->approved_date_cell,
@@ -140,7 +140,7 @@ class SetupApproval extends Page
 
         foreach ($this->workflowSteps as $step) {
             $key = "approver_{$step['step_order']}";
-            $deptName = $step['department'] ? "({$step['department']->name})" : '(Any Dept)';
+            $deptName = $step['division'] ? "({$step['division']->name})" : '(Any Div)';
             $stepTypeName = $step['step_type']?->label() ?? 'Step';
             $roleName = $step['role']->name ?? 'Unknown';
             $label = "{$stepTypeName} by {$roleName} {$deptName}";

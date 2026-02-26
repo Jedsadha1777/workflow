@@ -19,8 +19,8 @@ class ViewDocument extends ViewRecord
             ->schema([
                 Infolists\Components\TextEntry::make('title'),
                 Infolists\Components\TextEntry::make('creator.name'),
-                Infolists\Components\TextEntry::make('department.name')
-                    ->label('Department'),
+                Infolists\Components\TextEntry::make('division.name')
+                    ->label('Division'),
                 Infolists\Components\TextEntry::make('status')
                     ->badge()
                     ->color(fn ($state) => $state->color()),

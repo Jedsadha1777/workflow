@@ -97,11 +97,47 @@ class DocumentExportController extends Controller
                             $sheetHtml
                         );
                     } else {
-                        $escapedValue = htmlspecialchars($value);
+                        if (is_bool($value)) {
+                             if ($value) {
+                                // Checked
+                                $escapedValue = '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="0" y="0" width="16" height="16" fill="#fff" stroke="#000" stroke-width="1"/><path d="M3 8l3 3 7-7" fill="none" stroke="#000" stroke-width="2"/></svg>';
+                            } else {
+                                // Unchecked
+                                $escapedValue = '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="0" y="0" width="16" height="16" fill="#fff" stroke="#000" stroke-width="1"/></svg>';
+                            }
+                        } else {
+                            $escapedValue = htmlspecialchars($value);
+                        }
                         $sheetHtml = preg_replace_callback(
                             '/<td([^>]*data-cell="' . preg_quote($sheetName . ':' . $cell, '/') . '"[^>]*)>.*?<\/td>/s',
                             function($matches) use ($escapedValue) {
                                 return '<td' . $matches[1] . '><div style="padding:4px;">' . $escapedValue . '</div></td>';
+                            },
+                            $sheetHtml
+                        );
+                    }
+                }
+            }
+
+            // Apply _styles (conditional formatting)
+            if (!empty($formData['_styles'][$sheetName])) {
+                foreach ($formData['_styles'][$sheetName] as $cell => $styleData) {
+                    if (!empty($styleData['backgroundColor'])) {
+                        $cellRef = $sheetName . ':' . $cell;
+                        $bgColor = $styleData['backgroundColor'];
+                        $sheetHtml = preg_replace_callback(
+                            '/<td([^>]*data-cell="' . preg_quote($cellRef, '/') . '"[^>]*)>/s',
+                            function($matches) use ($bgColor) {
+                                $attrs = $matches[1];
+                                if (preg_match('/style="([^"]*)"/', $attrs, $styleMatch)) {
+                                    $existingStyle = rtrim($styleMatch[1], ';');
+                                    $existingStyle = preg_replace('/background-color:[^;]+;?/', '', $existingStyle);
+                                    $newStyle = $existingStyle . ';background-color:' . $bgColor;
+                                    $attrs = preg_replace('/style="[^"]*"/', 'style="' . $newStyle . '"', $attrs);
+                                } else {
+                                    $attrs .= ' style="background-color:' . $bgColor . ';"';
+                                }
+                                return '<td' . $attrs . '>';
                             },
                             $sheetHtml
                         );
@@ -259,7 +295,7 @@ class DocumentExportController extends Controller
                         } elseif (is_array($value) && isset($value['type']) && $value['type'] === 'date') {
                             $worksheet->setCellValue($cellCoord, $value['date']);
                         } elseif (is_bool($value)) {
-                            $worksheet->setCellValue($cellCoord, $value ? 'TRUE' : 'FALSE');
+                            $worksheet->setCellValue($cellCoord, $value ? '☑' : '☐');
                         } elseif ($value !== '' && $value !== null) {
                             $worksheet->setCellValue($cellCoord, $value);
                         }

@@ -162,14 +162,15 @@ class FAISSIndex:
             self._cleanup()
             self.docs = qa_list
             
-            # Combine question + keywords for better matching
+            # Use only questions for FAISS semantic search
+            # Keywords are for keyword search only (different purpose)
             texts = []
             for qa in qa_list:
                 q = qa.get("q", "")
-                keywords = qa.get("keywords", [])
                 q_en = qa.get("q_en", "")
                 q_ja = qa.get("q_ja", "")
-                combined = f"{q} {q_en} {q_ja} {' '.join(keywords)}".strip()
+                # Only questions - no keywords (keywords pollute semantic meaning)
+                combined = f"{q} {q_en} {q_ja}".strip()
                 texts.append(combined)
             
             print(f"[INFO] Building FAISS index for {len(texts)} items...")
@@ -354,7 +355,12 @@ class HybridSearch:
                 Config.FAISS_WEIGHT * data["rrf_faiss"] +
                 Config.KEYWORD_WEIGHT * data["rrf_keyword"]
             )
-            normalized_score = min(1.0, final_score * 60)
+            # RRF score is already 0-0.016 range, multiply by factor to get 0-1
+            # But also incorporate raw scores for better relevance signal
+            raw_score = max(data["raw_faiss"], data["raw_keyword"])
+            # Final score: weighted average of RRF ranking + raw similarity
+            normalized_score = (final_score * 30) * 0.5 + raw_score * 0.5
+            normalized_score = min(1.0, normalized_score)
             
             combined.append({
                 "q": data["q"],
@@ -369,14 +375,16 @@ class HybridSearch:
         return combined[:top_k]
     
     async def get_direct_answer(self, query: str) -> Optional[dict]:
-        """Get direct answer using hybrid search"""
+        """Get direct answer using hybrid search (high confidence only)"""
         results = await self.search(query, top_k=1)
         
         if not results:
             return None
         
         top = results[0]
-        if top["score"] >= 0.7 or top["exact"]:
+        # Direct answer requires minimum 0.5 score (high confidence)
+        min_threshold = max(0.5, Config.SIMILARITY_THRESHOLD)
+        if top["score"] >= min_threshold or top["exact"]:
             return {
                 "answer": top["a"],
                 "source": top["q"],
@@ -387,13 +395,18 @@ class HybridSearch:
         return None
     
     async def get_context_for_llm(self, query: str) -> Optional[str]:
-        """Get context for LLM"""
+        """
+        Get context for LLM summarization.
+        Uses SIMILARITY_THRESHOLD from config - no hardcoded lower bound.
+        """
         results = await self.search(query, top_k=Config.MAX_SEARCH_RESULTS)
         
         if not results:
             return None
         
-        relevant = [r for r in results if r["score"] >= Config.SIMILARITY_THRESHOLD]
+        # Use config threshold, minimum 0.4 to avoid garbage context
+        context_threshold = max(0.4, Config.SIMILARITY_THRESHOLD)
+        relevant = [r for r in results if r["score"] >= context_threshold]
         
         if not relevant:
             return None

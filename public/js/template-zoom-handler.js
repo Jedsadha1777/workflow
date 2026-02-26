@@ -19,18 +19,42 @@
             if (table) {
                 const scale = window.sheetZoomLevels[sheetId];
                 
-                // ไม่บีบ content - ให้ auto เต็มที่
-                wrapper.style.transformOrigin = 'top left';
-                wrapper.style.transform = 'scale(' + scale + ')';
-                wrapper.style.width = 'fit-content';
-                wrapper.style.height = 'fit-content';
+                const paddingParent = wrapper.parentElement;
+                const overflowParent = paddingParent ? paddingParent.parentElement : null;
                 
-                // ให้ table ขนาดเต็มที่ตามที่ควรจะเป็น
-                table.style.width = '';
-                table.style.minWidth = '';
+                // Reset to measure natural size
+                wrapper.style.transform = 'scale(1)';
+                wrapper.style.width = 'auto';
+                wrapper.style.height = 'auto';
+                
+                // Force reflow
+                void wrapper.offsetWidth;
+                
+                const naturalWidth = table.offsetWidth;
+                const naturalHeight = table.offsetHeight;
+                
+                // Apply scale to wrapper
+                 wrapper.style.transformOrigin = 'top left';
+                 wrapper.style.transform = 'scale(' + scale + ')';
+                wrapper.style.width = naturalWidth + 'px';
+                wrapper.style.height = naturalHeight + 'px';
+                 
+                // Update parent (padding container) size
+                if (paddingParent && overflowParent) {
+                    const padding = 16;
+                    const scaledWidth = naturalWidth * scale + padding * 2;
+                    const scaledHeight = naturalHeight * scale + padding * 2;
+                    
+                    paddingParent.style.width = scaledWidth + 'px';
+                    paddingParent.style.height = scaledHeight + 'px';
+                }
+                
+                 table.style.width = '';
+                 table.style.minWidth = '';                 
                 
             } else {
-                wrapper.style.transform = 'scale(' + window.sheetZoomLevels[sheetId] + ')';
+                const scale = window.sheetZoomLevels[sheetId];
+                wrapper.style.transform = 'scale(' + scale + ')'; 
                 wrapper.style.transformOrigin = 'top left';
                 wrapper.style.width = 'fit-content';
                 wrapper.style.height = 'fit-content';

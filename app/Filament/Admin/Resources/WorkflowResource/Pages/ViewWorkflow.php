@@ -105,8 +105,8 @@ class ViewWorkflow extends ViewRecord
                         Infolists\Components\TextEntry::make('name'),
                         Infolists\Components\TextEntry::make('template.name')
                             ->label('Template'),
-                        Infolists\Components\TextEntry::make('department.name')
-                            ->label('Department'),
+                        Infolists\Components\TextEntry::make('division.name')
+                            ->label('Division'),
                         Infolists\Components\TextEntry::make('role.name')
                             ->label('Role')
                             ->badge()
@@ -143,9 +143,9 @@ class ViewWorkflow extends ViewRecord
                                     ->state(fn($record) => ($record->step_type?->label() ?? 'Approve') . ' by ' . ($record->role->name ?? 'Unknown'))
                                     ->badge()
                                     ->color('info'),
-                                Infolists\Components\TextEntry::make('department.name')
-                                    ->label('Approver Dept')
-                                    ->default('Any department'),
+                                Infolists\Components\TextEntry::make('division.name')
+                                    ->label('Approver Div')
+                                    ->default('Any division'),
                                 Infolists\Components\TextEntry::make('template_step_order')
                                     ->label('Template Step'),
                             ])

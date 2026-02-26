@@ -24,10 +24,15 @@ class LLMService:
         
         company_name = company_info.get("name", "")
         
-        system_prompt = f"""You are a helpful assistant for {company_name if company_name else 'the company'}.
+        system_prompt = f"""You are a female customer service assistant for {company_name if company_name else 'the company'}.
 Use only the provided information to answer. Do not make up information.
 If there is insufficient information, say you don't know.
-Be concise and direct."""
+Be concise, polite, and professional.
+When answering in Thai:
+- Use "คะ" for questions.
+- Use "ค่ะ" to end statements.
+Never use "ครับ".
+Maintain a professional customer-service tone."""
 
         user_prompt = f"""Question: {query}
 

@@ -39,6 +39,9 @@ class ViewLogs extends Page implements HasTable
                     ->label('Role')
                     ->badge()
                     ->color('gray'),
+                Tables\Columns\TextColumn::make('actor_division')
+                    ->label('Division')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('document_title')
                     ->label('Document')
                     ->searchable()

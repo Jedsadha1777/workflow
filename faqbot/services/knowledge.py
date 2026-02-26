@@ -45,28 +45,41 @@ class KnowledgeBase:
             print(f"[ERROR] Failed to load KB: {e}")
             self._data = {"qa": [], "company_info": {}}
     
+    # Thai + English stopwords (common words that don't carry meaning)
+    STOPWORDS = {
+        # Thai
+        "มี", "ไหม", "ที่", "ได้", "ไป", "มา", "จะ", "ว่า", "ให้", "ของ", "และ", "หรือ",
+        "ไม่", "เป็น", "อยู่", "นี้", "นั้น", "ก็", "แล้ว", "กับ", "จาก", "ใน", "บน",
+        "คือ", "ทำ", "ยัง", "ถ้า", "เมื่อ", "อะไร", "ทำไม", "อย่างไร", "เท่าไหร่",
+        "ครับ", "ค่ะ", "คะ", "นะ", "สิ", "ล่ะ", "หน่อย",
+        # English
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+        "may", "might", "can", "to", "of", "in", "for", "on", "with", "at", "by",
+        "from", "as", "into", "through", "during", "before", "after", "above", "below",
+        "it", "its", "this", "that", "these", "those", "i", "you", "he", "she", "we", "they",
+        "what", "which", "who", "whom", "how", "when", "where", "why",
+    }
+    
     def _similarity(self, a: str, b: str) -> float:
-        """Calculate string similarity (0-1)"""
-        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+        """Disabled - fuzzy match causes too many false positives"""
+        # SequenceMatcher matches "มีแมวไหม" to "บริษัทมีมาตรฐาน ISO อะไรไหม"
+        # because of common substrings "มี" and "ไหม"
+        # Use FAISS for semantic similarity instead
+        return 0.0
     
     def _keyword_match(self, query: str, text: str) -> float:
-        """Score by keyword overlap"""
-        query_words = set(query.lower().split())
-        text_words = set(text.lower().split())
-        
-        if not query_words:
-            return 0
-        
-        common = query_words & text_words
-        score = len(common) / len(query_words)
-        
-        if query.lower() in text.lower() or text.lower() in query.lower():
-            score += 0.3
-        
-        return min(score, 1.0)
+        """
+        Score by keyword overlap.
+        For Thai: only match explicit keywords from KB, not substrings.
+        This function is now mostly disabled - rely on FAISS for semantic.
+        """
+        # Disable loose matching - too many false positives with Thai
+        # Only FAISS semantic + explicit keywords array should match
+        return 0.0
     
     def search(self, query: str) -> list[dict]:
-        """Search KB for matching Q&A"""
+        """Search KB - explicit keywords only, FAISS handles semantic"""
         self.load()
         
         if not self._data or not self._data.get("qa"):
@@ -80,22 +93,30 @@ class KnowledgeBase:
             a = item.get("a", "")
             keywords = item.get("keywords", [])
             
-            q_similarity = self._similarity(query_lower, q.lower())
-            q_keyword = self._keyword_match(query, q)
-            
+            # ONLY match explicit keywords from JSON
+            # Keywords should be specific: "iso9001", "มาตรฐานiso" not just "iso"
             kw_score = 0
             for kw in keywords:
-                if kw.lower() in query_lower:
+                kw_lower = kw.lower()
+                # Skip if keyword is just repeated chars like "มีมีมี"
+                unique_chars = len(set(kw_lower))
+                if unique_chars < 3:
+                    continue
+                # Require keyword length >= 5 AND unique chars >= 3
+                if len(kw_lower) >= 5 and kw_lower in query_lower:
                     kw_score = max(kw_score, 0.8)
             
-            score = max(q_similarity, q_keyword, kw_score)
-            exact = q_similarity > 0.85 or q_keyword > 0.9
+            # Exact question match only
+            exact = False
+            if query_lower == q.lower().strip():
+                kw_score = 1.0
+                exact = True
             
-            if score >= Config.SIMILARITY_THRESHOLD:
+            if kw_score >= Config.SIMILARITY_THRESHOLD:
                 results.append({
                     "q": q,
                     "a": a,
-                    "score": round(score, 3),
+                    "score": round(kw_score, 3),
                     "exact": exact
                 })
         

@@ -19,7 +19,7 @@ class LatestActivityWidget extends BaseWidget
             ->query(
                 DocumentActivityLog::query()
                     ->with(['document', 'actor'])
-                    ->whereIn('action', ['submitted', 'approved', 'rejected', 'recalled'])
+                    ->whereIn('action', ['submitted', 'prepared', 'checked', 'approved', 'rejected', 'recalled'])
                     ->orderBy('performed_at', 'desc')
                     ->limit(10)
             )

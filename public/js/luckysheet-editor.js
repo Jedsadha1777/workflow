@@ -693,12 +693,10 @@ function initLuckysheetEditor(wrapperId, config) {
 
                 const range = [row, col, rowEnd, colEnd];
                 setTimeout(function () {
-                    luckysheet.setRangeFormat("ht", 0, range);
+                    luckysheet.setRangeFormat("ht", 1, range);
                     luckysheet.setRangeFormat("vt", 0, range);
                     luckysheet.setRangeFormat("tb", 2, range);
-                    luckysheet.setRangeFormat("bl", 1, range);
                     luckysheet.setRangeFormat("fs", 12, range);
-                    luckysheet.setRangeFormat("bg", "#F3F4F6", range);
                 }, 50);
 
                 closeDialog();

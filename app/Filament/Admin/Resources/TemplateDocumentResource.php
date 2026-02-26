@@ -45,7 +45,8 @@ class TemplateDocumentResource extends Resource
                 Forms\Components\TextInput::make('name')
                     ->required()
                     ->maxLength(255)
-                    ->disabled(fn($record) => $record && !$record->canEdit()),
+                    // ->disabled(fn($record) => $record && !$record->canEdit()),
+                    ->disabled(fn($record) => $record !== null),
                 Forms\Components\TextInput::make('version')
                     ->disabled()
                     ->default(1)
@@ -79,7 +80,7 @@ class TemplateDocumentResource extends Resource
 
                         $filePath = $record->excel_file;
                         $fileUrl = asset('storage/' . $filePath);
-                        $editorJsUrl = asset('js/luckysheet-editor.js?v=1.1');
+                        $editorJsUrl = asset('js/luckysheet-editor.js?v=1.2');
                         $id = 'luckysheet_' . uniqid();
                         $wrapperId = 'wrapper_' . $id;
 
@@ -273,7 +274,8 @@ HTML
                             }
                         }),
                 ]),
-            ]);
+            ])
+            ->checkIfRecordIsSelectableUsing(fn ($record) => $record->canDelete());
     }
 
 

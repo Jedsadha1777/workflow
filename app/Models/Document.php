@@ -13,7 +13,7 @@ class Document extends Model
         'title',
         'content',
         'creator_id',
-        'department_id',
+        'division_id',
         'template_document_id',
         'workflow_id',
         'form_data',
@@ -39,9 +39,9 @@ class Document extends Model
         return $this->belongsTo(User::class, 'creator_id');
     }
 
-    public function department(): BelongsTo
+    public function division(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Division::class);
     }
 
     public function template(): BelongsTo
@@ -145,12 +145,15 @@ class Document extends Model
         }
 
         // เคย approve ไปแล้ว
-        $hasApproved = $this->approvers()
-            ->where('approver_id', $user->id)
-            ->where('status', \App\Enums\ApprovalStatus::APPROVED)
-            ->exists();
-
-        if ($hasApproved) {
+        $hasActed = $this->approvers()
+             ->where('approver_id', $user->id)
+            ->whereIn('status', [
+                \App\Enums\ApprovalStatus::APPROVED,
+                \App\Enums\ApprovalStatus::REJECTED,
+            ])
+             ->exists();
+ 
+        if ($hasActed) {
             return 'full';
         }
 
@@ -203,25 +206,33 @@ class Document extends Model
     public function setSignature(string $sheet, string $cell, int $userId): void
     {
         $user = User::find($userId);
-        if (!$user || !$user->signature_path) {
+        if (!$user || !$user->signature_image) {
             return;
         }
 
-        $content = $this->content ?? [];
-        $content['signatures'] = $content['signatures'] ?? [];
-        $content['signatures']["{$sheet}:{$cell}"] = [
-            'user_id' => $userId,
-            'path' => $user->signature_path,
+
+        $formData = $this->form_data ?? [];
+        if (!isset($formData[$sheet])) {
+            $formData[$sheet] = [];
+        }
+        $formData[$sheet][$cell] = [
+            'type' => 'signature',
+            'approver_id' => $userId,
             'signed_at' => now()->toISOString(),
-        ];
-        $this->content = $content;
+         ];
+        $this->form_data = $formData;
     }
 
     public function setApprovedDate(string $sheet, string $cell): void
     {
-        $content = $this->content ?? [];
-        $content['approved_dates'] = $content['approved_dates'] ?? [];
-        $content['approved_dates']["{$sheet}:{$cell}"] = now()->format('d/m/Y');
-        $this->content = $content;
+        $formData = $this->form_data ?? [];
+        if (!isset($formData[$sheet])) {
+            $formData[$sheet] = [];
+        }
+        $formData[$sheet][$cell] = [
+            'type' => 'date',
+            'date' => now()->toDateString(),
+        ];
+        $this->form_data = $formData;
     }
 }

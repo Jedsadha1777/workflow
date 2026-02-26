@@ -29,8 +29,8 @@ class StatsOverviewWidget extends BaseWidget
                 ->descriptionIcon('heroicon-o-document-text')
                 ->color('primary'),
 
-            Stat::make('Pending Approval', $pendingDocuments)
-                ->description('Waiting for approval')
+            Stat::make('Pending', $pendingDocuments)
+                ->description('Waiting for action')
                 ->descriptionIcon('heroicon-o-clock')
                 ->color('warning'),
 

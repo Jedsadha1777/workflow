@@ -17,7 +17,7 @@ class CreateDocument extends CreateRecord
         \Log::info('=== mutateFormDataBeforeCreate START ===');
 
         $data['creator_id'] = auth()->id();
-        $data['department_id'] = auth()->user()->department_id;
+        $data['division_id'] = auth()->user()->division_id;
         $data['status'] = DocumentStatus::DRAFT;
 
         if (isset($data['template_document_id'])) {

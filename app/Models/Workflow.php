@@ -11,7 +11,7 @@ class Workflow extends Model
     protected $fillable = [
         'name',
         'template_id',
-        'department_id',
+        'division_id',
         'role_id',
         'version',
         'status',
@@ -30,9 +30,9 @@ class Workflow extends Model
         return $this->belongsTo(TemplateDocument::class, 'template_id');
     }
 
-    public function department(): BelongsTo
+    public function division(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Division::class);
     }
 
     public function role(): BelongsTo

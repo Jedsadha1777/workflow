@@ -84,6 +84,21 @@ class TemplateDocument extends Model
         return $this->status === TemplateStatus::DRAFT;
     }
 
+      public function isUsedByPublishedWorkflow(): bool
+    {
+        return \App\Models\Workflow::where('template_id', $this->id)
+            ->where('status', 'PUBLISHED')
+            ->exists();
+    }
+
+    public function canArchive(): bool
+    {
+        return $this->status === TemplateStatus::PUBLISHED 
+            && !$this->isExpired()
+            && !$this->isUsedByPublishedWorkflow();
+    }
+
+
     public function canPublish(): bool
     {
         return $this->status === TemplateStatus::DRAFT
@@ -173,21 +188,21 @@ class TemplateDocument extends Model
         });
     }
 
-    public function validateForDepartments(): array
+    public function validateForDivisions(): array
     {
-        $departments = \App\Models\Department::all();
+        $divisions = \App\Models\Division::all();
         $warnings = [];
 
-        foreach ($departments as $dept) {
+        foreach ($divisions as $dept) {
             foreach ($this->workflows as $workflow) {
                 $roleLabel = $workflow->required_role ? $workflow->required_role->label() : 'Unknown Role';
 
-                if ($workflow->same_department) {
+                if ($workflow->same_division) {
                     $roleValue = $workflow->required_role ? $workflow->required_role->value : null;
                     if (!$roleValue) continue;
 
                     $count = \App\Models\User::where('role', $roleValue)
-                        ->where('department_id', $dept->id)
+                        ->where('division_id', $dept->id)
                         ->count();
 
                     if ($count === 0) {

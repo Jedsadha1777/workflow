@@ -111,56 +111,11 @@ async def ask(req: AskRequest, request: Request):
         )
     
     # ===== Layer 2: LLM with KB Context =====
-    # If no KB context → free chat
+    # If no KB context → no info (don't allow free chat to prevent random questions)
     if not context:
-        if not llm_service or not llm_service.is_available():
-            return AskResponse(
-                answer="Sorry, no related information found.",
-                used_llm=False
-            )
-        
-        budget_service = BudgetService(redis_client)
-        if await budget_service.is_budget_exceeded():
-            return AskResponse(
-                answer="Sorry, no related information found.",
-                used_llm=False
-            )
-        
-        # Check free chat cache
-        free_cache = FreeChatCache(redis_client)
-        cached_answer = await free_cache.get(question)
-        if cached_answer:
-            print(f"[TELEMETRY] free_chat cache_hit=true")
-            return AskResponse(
-                answer=cached_answer,
-                used_llm=True,
-                cached=True
-            )
-        
-        # Free chat with LLM
-        start_time = time.time()
-        answer, usage = await llm_service.free_chat(question)
-        latency = time.time() - start_time
-        
-        cost = 0.0
-        if usage:
-            await budget_service.add_cost(
-                usage.get("input_tokens", 0),
-                usage.get("output_tokens", 0)
-            )
-            cost = (usage.get("input_tokens", 0) / 1_000_000) * Config.COST_INPUT_PER_1M
-            cost += (usage.get("output_tokens", 0) / 1_000_000) * Config.COST_OUTPUT_PER_1M
-        
-        await free_cache.set(question, answer)
-        
-        print(f"[TELEMETRY] free_chat used_llm=true cache_hit=false "
-              f"input_tokens={usage.get('input_tokens', 0)} "
-              f"output_tokens={usage.get('output_tokens', 0)} "
-              f"latency={latency:.2f}s cost=${cost:.6f}")
-        
         return AskResponse(
-            answer=answer,
-            used_llm=True
+            answer="ขออภัย ไม่พบข้อมูลที่เกี่ยวข้อง",
+            used_llm=False
         )
     
     # Has KB context → summarize with LLM

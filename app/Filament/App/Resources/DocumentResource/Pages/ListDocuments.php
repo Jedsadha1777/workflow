@@ -60,7 +60,10 @@ class ListDocuments extends ListRecords
                         ->from('document_approvers')
                         ->whereColumn('document_approvers.document_id', 'documents.id')
                         ->where('document_approvers.approver_id', $user->id)
-                        ->where('document_approvers.status', ApprovalStatus::APPROVED->value);
+                        ->whereIn('document_approvers.status', [
+                            ApprovalStatus::APPROVED->value,
+                            ApprovalStatus::REJECTED->value,
+                        ]);
                 })
                 ->orderBy('documents.id', 'desc')
                 ->limit(100)
@@ -92,33 +95,37 @@ class ListDocuments extends ListRecords
         }
 
         return [
-             'all' => Tab::make('All Documents')
-                 ->modifyQueryUsing(function (Builder $query) use ($user) {
-                     return $query->where(function ($q) use ($user) {
-                         $q->where('documents.creator_id', $user->id)
+            'all' => Tab::make('All Documents')
+                ->modifyQueryUsing(function (Builder $query) use ($user) {
+                    return $query->where(function ($q) use ($user) {
+                        $q->where('documents.creator_id', $user->id)
                             ->orWhere(function ($q) use ($user) {
                                 $q->where('documents.status', DocumentStatus::PENDING->value)
                                     ->whereExists(function ($q) use ($user) {
                                         $q->selectRaw('1')
                                             ->from('document_approvers')
                                             ->whereColumn('document_approvers.document_id', 'documents.id')
-                                            ->where('document_approvers.approver_id', $user->id);
+                                            ->where('document_approvers.approver_id', $user->id)
+                                            ->whereColumn('document_approvers.step_order', 'documents.current_step');
                                     });
                             })
                             ->orWhereExists(function ($q) use ($user) {
-                                 $q->selectRaw('1')
-                                     ->from('document_approvers')
-                                     ->whereColumn('document_approvers.document_id', 'documents.id')
+                                $q->selectRaw('1')
+                                    ->from('document_approvers')
+                                    ->whereColumn('document_approvers.document_id', 'documents.id')
                                     ->where('document_approvers.approver_id', $user->id)
-                                    ->where('document_approvers.status', ApprovalStatus::APPROVED->value);
-                             });
-                     })->orderBy('documents.id', 'desc');
-                 }),
+                                    ->whereIn('document_approvers.status', [
+                                        ApprovalStatus::APPROVED->value,
+                                        ApprovalStatus::REJECTED->value,
+                                    ]);
+                            });
+                    })->orderBy('documents.id', 'desc');
+                }),
             'my_documents' => Tab::make('My Documents')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('documents.creator_id', $user->id)->orderBy('documents.id', 'desc')),
             'pending_my_approval' => Tab::make('Pending My Approval')
                 ->modifyQueryUsing(fn(Builder $query) => $query->orderBy('documents.id', 'asc')),
-            'approved_by_me' => Tab::make('Approved by Me')
+            'approved_by_me' => Tab::make('Processed by Me')
                 ->modifyQueryUsing(fn(Builder $query) => $query->orderBy('documents.id', 'desc')),
         ];
     }

@@ -12,11 +12,6 @@ class EditTemplateDocument extends EditRecord
 
     protected function getHeaderActions(): array
     {
-       
-
-
-    
-
 
         $actions[] = Actions\ViewAction::make();
 
@@ -30,18 +25,15 @@ class EditTemplateDocument extends EditRecord
                 ->visible(fn() => $this->record->content !== null && $this->record->canEdit())
         ;
 
-       
-        
-
         return $actions;
     }
 
     protected function getPublishWarnings(): string
     {
-        $warnings = $this->record->validateForDepartments();
+        $warnings = $this->record->validateForDivisions();
 
         if (empty($warnings)) {
-            return 'Template is ready to publish. All departments have required roles.';
+            return 'Template is ready to publish. All divisions have required roles.';
         }
 
         $html = "⚠️ <strong>Warnings:</strong>\n\n";

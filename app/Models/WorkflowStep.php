@@ -13,7 +13,7 @@ class WorkflowStep extends Model
         'workflow_id',
         'step_order',
         'role_id',
-        'department_id',
+        'division_id',
         'template_step_order',
         'step_type',
     ];
@@ -37,9 +37,9 @@ class WorkflowStep extends Model
         return $this->belongsTo(Role::class);
     }
 
-    public function department(): BelongsTo
+    public function division(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Division::class);
     }
 
     public function findCandidates(): Collection
@@ -47,8 +47,8 @@ class WorkflowStep extends Model
         $query = User::where('role_id', $this->role_id)
             ->where('is_active', true);
 
-        if ($this->department_id) {
-            $query->where('department_id', $this->department_id);
+        if ($this->division_id) {
+            $query->where('division_id', $this->division_id);
         }
 
         return $query->get();

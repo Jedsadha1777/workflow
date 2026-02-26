@@ -5,7 +5,7 @@ namespace App\Filament\Admin\Resources;
 use App\Filament\Admin\Resources\UserResource\Pages;
 use App\Models\User;
 use App\Models\Role;
-use App\Models\Department;
+use App\Models\Division;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -40,9 +40,9 @@ class UserResource extends Resource
                             ->required()
                             ->searchable()
                             ->preload(),
-                        Forms\Components\Select::make('department_id')
-                            ->label('Department')
-                            ->options(Department::where('is_active', true)->pluck('name', 'id'))
+                        Forms\Components\Select::make('division_id')
+                            ->label('Division')
+                            ->options(Division::where('is_active', true)->pluck('name', 'id'))
                             ->required()
                             ->searchable()
                             ->preload(),
@@ -88,8 +88,8 @@ class UserResource extends Resource
                     ->color(fn($record) => $record->role?->is_admin ? 'danger' : 'primary')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('department.name')
-                    ->label('Department')
+                Tables\Columns\TextColumn::make('division.name')
+                    ->label('Division')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
@@ -103,9 +103,9 @@ class UserResource extends Resource
                 Tables\Filters\SelectFilter::make('role_id')
                     ->label('Role')
                     ->options(Role::pluck('name', 'id')),
-                Tables\Filters\SelectFilter::make('department_id')
-                    ->label('Department')
-                    ->options(Department::pluck('name', 'id')),
+                Tables\Filters\SelectFilter::make('division_id')
+                    ->label('Division')
+                    ->options(Division::pluck('name', 'id')),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active'),
             ])

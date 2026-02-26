@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     use HasFactory, Notifiable, SoftDeletes;
 
@@ -18,7 +20,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role_id',
-        'department_id',
+        'division_id',
         'signature_image',
         'is_active',
     ];
@@ -37,14 +39,28 @@ class User extends Authenticatable
         ];
     }
 
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        if (!$this->is_active) {
+            return false;
+        }
+
+        if ($panel->getId() === 'admin') {
+            return $this->isAdmin();
+        }
+
+        return !$this->isAdmin();
+    }
+
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
-    public function department(): BelongsTo
+    public function division(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Division::class);
     }
 
     public function documents(): HasMany
@@ -72,8 +88,8 @@ class User extends Authenticatable
         return $query->where('role_id', $roleId);
     }
 
-    public function scopeByDepartment($query, int $departmentId)
+    public function scopeByDivision($query, int $divisionId)
     {
-        return $query->where('department_id', $departmentId);
+        return $query->where('division_id', $divisionId);
     }
 }

@@ -38,7 +38,7 @@ class AppPanelProvider extends PanelProvider
             ->authGuard('web')
             ->homeUrl('/articles')
             ->colors([
-                'primary' => Color::Red,
+                'primary' => Color::Blue,
             ])
             ->discoverResources(in: app_path('Filament/App/Resources'), for: 'App\\Filament\\App\\Resources')
             ->discoverPages(in: app_path('Filament/App/Pages'), for: 'App\\Filament\\App\\Pages')

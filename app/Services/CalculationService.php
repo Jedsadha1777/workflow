@@ -386,6 +386,7 @@ class CallNode extends ASTNode
             'getValue' => $this->getValue($evaluatedArgs, $formData),
             'setValue' => $this->setValue($evaluatedArgs, $formData),
             'parseFloat' => floatval($evaluatedArgs[0] ?? 0),
+            'setBgColor' => $this->setBgColor($evaluatedArgs, $formData),
             default => 0
         };
     }
@@ -415,6 +416,27 @@ class CallNode extends ASTNode
         $formData[$sheet][$cell] = $value;
         
         return $value;
+    }
+
+    private function setBgColor(array $args, array &$formData): mixed
+    {
+        
+        $cellRef = $args[0] ?? '';
+        $color = $args[1] ?? '';
+        
+        $parts = explode(':', $cellRef);
+        if (count($parts) !== 2) return $color;
+        
+        [$sheet, $cell] = $parts;
+        if (!isset($formData['_styles'])) {
+            $formData['_styles'] = [];
+        }
+        if (!isset($formData['_styles'][$sheet])) {
+            $formData['_styles'][$sheet] = [];
+        }
+        $formData['_styles'][$sheet][$cell] = ['backgroundColor' => $color];
+        
+        return $color;
     }
 }
 

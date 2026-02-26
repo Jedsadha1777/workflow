@@ -61,7 +61,9 @@ window.templateFormHandler = function(formId, existingData) {
                 if (!td) return '';
                 
                 const field = td.querySelector('input, select, textarea');
-                if (!field) return '';
+                if (!field) {
+                    return td.textContent.trim() || '';
+                }
                 
                 if (field.type === 'checkbox') {
                     return field.checked;
@@ -86,11 +88,19 @@ window.templateFormHandler = function(formId, existingData) {
                     }
                     field.dispatchEvent(new Event('change', { bubbles: true }));
                 } else {
-                    td.innerHTML = '<strong style="color: #059669;">' + value + '</strong>';
+                    td.innerHTML =  value ;
+                }
+            };
+
+
+            window.setBgColor = function(cellRef, color) {
+                const td = container.querySelector('td[data-cell="' + cellRef + '"]');
+                if (td) {
+                    td.style.backgroundColor = color;
                 }
             };
             
-            console.log('✓ Calculation functions ready: getValue(), setValue()');
+            console.log('✓ Calculation functions ready: getValue(), setValue(), setBgColor()');
         },
         
         renderFields() {
@@ -167,6 +177,9 @@ window.templateFormHandler = function(formId, existingData) {
             
             console.log('=== LOADING DATA ===');
             Object.keys(this.formData).forEach(sheet => {
+
+                if (sheet === '_styles') return;
+
                 Object.keys(this.formData[sheet]).forEach(cell => {
                     const value = this.formData[sheet][cell];
                     const cellRef = sheet + ':' + cell;
@@ -194,7 +207,25 @@ window.templateFormHandler = function(formId, existingData) {
                     }
                 });
             });
-            console.log('✓ Total loaded', loaded, 'fields');
+            console.log('✓ Total loaded', loaded, 'fields'); 
+
+            this.applyStyles();
+        },
+
+        applyStyles() {
+            const container = this.$el;
+            const styles = this.formData['_styles'] || {};
+            
+            Object.keys(styles).forEach(sheet => {
+                Object.keys(styles[sheet]).forEach(cell => {
+                    const cellRef = sheet + ':' + cell;
+                    const td = container.querySelector('td[data-cell="' + cellRef + '"]');
+                    if (td && styles[sheet][cell] && styles[sheet][cell].backgroundColor) {
+                        td.style.backgroundColor = styles[sheet][cell].backgroundColor;
+                    }
+                });
+            });
+           console.log('✓ Applied saved styles');
         },
         
         setupEventListeners() {

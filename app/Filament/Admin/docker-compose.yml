@@ -1,0 +1,119 @@
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow_laravel
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    environment:
+      - PDF_SERVICE_URL=http://pdf-service:3000
+    networks:
+      - laravel
+    depends_on:
+      - db
+      - pdf-service
+  nginx:
+    image: nginx:alpine
+    container_name: workflow_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    networks:
+      - laravel
+    depends_on:
+      - app
+  db:
+    image: mysql:8.0
+    container_name: workflow_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: password
+      MYSQL_USER: laravel
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - laravel
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: workflow_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root
+    ports:
+      - "8080:80"
+    networks:
+      - laravel
+    depends_on:
+      - db
+  pdf-service:
+    build:
+      context: ./pdf-service
+      dockerfile: Dockerfile
+    container_name: workflow_pdf_service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - laravel
+  # =============================================================================
+  # FAQ BOT SERVICES
+  # =============================================================================
+  faqbot:
+    build:
+      context: ./faqbot
+      dockerfile: Dockerfile
+    container_name: workflow_faqbot
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./faqbot/.env
+    volumes:
+      - ./faqbot/knowledge:/data/knowledge
+    networks:
+      - laravel
+    depends_on:
+      - faqbot-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  faqbot-redis:
+    image: redis:7-alpine
+    container_name: workflow_faqbot_redis
+    restart: unless-stopped
+    volumes:
+      - faqbot_redis:/data
+    networks:
+      - laravel
+    command: redis-server --appendonly yes
+networks:
+  laravel:
+    driver: bridge
+volumes:
+  dbdata:
+    driver: local
+  faqbot_redis:
+    driver: local

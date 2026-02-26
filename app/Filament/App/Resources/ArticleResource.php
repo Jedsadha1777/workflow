@@ -16,6 +16,7 @@ class ArticleResource extends Resource
     protected static ?string $model = Article::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-newspaper';
+    protected static ?int $navigationSort = 99;
 
     public static function infolist(Infolist $infolist): Infolist
     {

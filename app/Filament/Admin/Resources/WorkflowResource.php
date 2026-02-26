@@ -4,7 +4,7 @@ namespace App\Filament\Admin\Resources;
 
 use App\Filament\Admin\Resources\WorkflowResource\Pages;
 use App\Models\Workflow;
-use App\Models\Department;
+use App\Models\Division;
 use App\Models\Role;
 use App\Models\TemplateDocument;
 use App\Enums\TemplateStatus;
@@ -61,9 +61,9 @@ class WorkflowResource extends Resource
                             ->live()
                             ->afterStateUpdated(fn (Set $set) => $set('steps', []))
                             ->disabled(fn (?Model $record) => $record && !$record->canEdit()),
-                        Forms\Components\Select::make('department_id')
-                            ->label('Department')
-                            ->options(Department::where('is_active', true)->pluck('name', 'id'))
+                        Forms\Components\Select::make('division_id')
+                            ->label('Division')
+                            ->options(Division::where('is_active', true)->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->required()
@@ -161,13 +161,13 @@ class WorkflowResource extends Resource
                                     ->required()
                                     ->native(false),
                                 Forms\Components\Select::make('role_id')
-                                    ->label('Approver Role')
+                                    ->label('Role')
                                     ->options(Role::where('is_active', true)->where('is_admin', false)->pluck('name', 'id'))
                                     ->required()
                                     ->native(false),
-                                Forms\Components\Select::make('department_id')
-                                    ->label('Approver Dept')
-                                    ->options(Department::where('is_active', true)->pluck('name', 'id'))
+                                Forms\Components\Select::make('division_id')
+                                    ->label('Div')
+                                    ->options(Division::where('is_active', true)->pluck('name', 'id'))
                                     ->placeholder('แผนกเดียวกับเอกสาร')
                                     ->native(false),
                                 Forms\Components\Select::make('step_type')
@@ -203,8 +203,8 @@ class WorkflowResource extends Resource
                     ->sortable()
                     ->description(fn ($record) => $record->template?->isExpired() ? 'Template หมดอายุ' : null)
                     ->color(fn ($record) => $record->template?->isExpired() ? 'danger' : null),
-                Tables\Columns\TextColumn::make('department.name')
-                    ->label('Department')
+                Tables\Columns\TextColumn::make('division.name')
+                    ->label('Division')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('role.name')
@@ -234,9 +234,9 @@ class WorkflowResource extends Resource
                     ->label('Steps'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('department_id')
-                    ->label('Department')
-                    ->options(Department::pluck('name', 'id')),
+                Tables\Filters\SelectFilter::make('division_id')
+                    ->label('Division')
+                    ->options(Division::pluck('name', 'id')),
                 Tables\Filters\SelectFilter::make('role_id')
                     ->label('Role')
                     ->options(Role::where('is_admin', false)->pluck('name', 'id')),

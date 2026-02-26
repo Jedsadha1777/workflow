@@ -260,7 +260,7 @@ window.runCalculations_' . $formId . ' = function() {
                 'documents.title',
                 'documents.status',
                 'documents.creator_id',
-                'documents.department_id',
+                'documents.division_id',
                 'documents.template_document_id',
                 'documents.current_step',
                 'documents.submitted_at',
@@ -273,14 +273,14 @@ window.runCalculations_' . $formId . ' = function() {
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Creator')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('department.name')
-                    ->label('Department')
+                Tables\Columns\TextColumn::make('division.name')
+                    ->label('Division')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn($state) => $state->color()),
                 Tables\Columns\TextColumn::make('approval_progress')
-                    ->label('Approval Progress')
+                    ->label('Progress')
                     ->html()
                     ->sortable(false)
                     ->getStateUsing(function ($record) {
@@ -316,12 +316,12 @@ window.runCalculations_' . $formId . ' = function() {
 
                         $progress = '<div style="font-size: 12px;">';
                         $progress .= '<div style="margin-bottom: 4px;">';
-                        $progress .= '<span style="font-weight: 600;">' . $approvedCount . '/' . $totalApprovers . ' approved</span>';
+                        $progress .= '<span style="font-weight: 600;">' . $approvedCount . '/' . $totalApprovers . ' completed</span>';
                         $progress .= '</div>';
 
                         if ($record->status === DocumentStatus::PENDING && $currentApprover) {
                             $progress .= '<div style="color: #d97706;">';
-                            $progress .= '→ Waiting: ' . htmlspecialchars($currentApprover->approver->name);
+                            $progress .= '-> Waiting: ' . htmlspecialchars($currentApprover->approver->name);
                             $progress .= '</div>';
                         }
 
@@ -336,9 +336,9 @@ window.runCalculations_' . $formId . ' = function() {
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options(DocumentStatus::class),
-                Tables\Filters\SelectFilter::make('department_id')
-                    ->label('Department')
-                    ->relationship('department', 'name'),
+                Tables\Filters\SelectFilter::make('division_id')
+                    ->label('Division')
+                    ->relationship('division', 'name'),
                 Tables\Filters\SelectFilter::make('template_document_id')
                     ->label('Template')
                     ->relationship('template', 'name'),
@@ -373,7 +373,6 @@ window.runCalculations_' . $formId . ' = function() {
             'logs' => Pages\ViewLogs::route('/logs'),
             'index' => Pages\ListDocuments::route('/'),
             'view' => Pages\ViewDocument::route('/{record}')
-
         ];
     }
 }

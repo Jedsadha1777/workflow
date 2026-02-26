@@ -37,7 +37,7 @@ class Settings extends Page
             ->schema([
                 Forms\Components\Section::make('Basic Information')->schema([
                     Forms\Components\TextInput::make('name')
-                        ->required()
+                        ->disabled()
                         ->maxLength(255),
                 ])->columns(1),
 
@@ -299,7 +299,6 @@ setValue("Sheet:Cell", value)  // Write value to a cell
         $data = $this->form->getState();
         
         $this->record->update([
-            'name' => $data['name'],
             'calculation_scripts' => $data['calculation_scripts'],
         ]);
 

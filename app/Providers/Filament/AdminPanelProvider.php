@@ -47,6 +47,12 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 // Widgets\AccountWidget::class,
             ])
+             ->navigationGroups([
+                'Workflow',
+                'Management',
+                'Settings',
+                'Other',
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

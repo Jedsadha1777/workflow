@@ -24,7 +24,7 @@ class Config:
     KNOWLEDGE_FILE = os.getenv("KNOWLEDGE_FILE", "/data/knowledge/knowledge.json")
     
     # Search Settings
-    SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
+    SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
     MAX_SEARCH_RESULTS = int(os.getenv("MAX_SEARCH_RESULTS", "3"))
     
     # LLM Settings

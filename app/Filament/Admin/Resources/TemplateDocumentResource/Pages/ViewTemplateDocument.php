@@ -75,7 +75,7 @@ class ViewTemplateDocument extends ViewRecord
                 );
         }
 
-        if ($this->record->status === TemplateStatus::PUBLISHED && !$this->record->isExpired()) {
+        if ($this->record->canArchive()) {
             $actions[] = Actions\Action::make('archive')
                 ->label('Archive')
                 ->icon('heroicon-o-archive-box')
@@ -112,10 +112,10 @@ class ViewTemplateDocument extends ViewRecord
 
     protected function getPublishWarnings(): string
     {
-        $warnings = $this->record->validateForDepartments();
+        $warnings = $this->record->validateForDivisions();
         
         if (empty($warnings)) {
-            return 'Template is ready to publish. All departments have required roles.';
+            return 'Template is ready to publish. All divisions have required roles.';
         }
 
         $html = "⚠️ <strong>Warnings:</strong>\n\n";
@@ -173,8 +173,8 @@ class ViewTemplateDocument extends ViewRecord
                                 Infolists\Components\TextEntry::make('required_role')
                                     ->badge()
                                     ->color('info'),
-                                Infolists\Components\IconEntry::make('same_department')
-                                    ->label('Same Dept')
+                                Infolists\Components\IconEntry::make('same_division')
+                                    ->label('Same Div')
                                     ->boolean(),
                                 Infolists\Components\TextEntry::make('signature_cell')
                                     ->label('Signature'),

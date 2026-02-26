@@ -37,10 +37,10 @@ class DocumentResource extends Resource
                     ->label('Template')
                     ->options(function () {
                         $user = auth()->user();
-                        $departmentId = $user->department_id;
+                        $divisionId = $user->division_id;
                         $roleId = $user->role_id;
 
-                        $templateIdsWithWorkflow = Workflow::where('department_id', $departmentId)
+                        $templateIdsWithWorkflow = Workflow::where('division_id', $divisionId)
                             ->where('role_id', $roleId)
                             ->where('status', 'PUBLISHED')
                             ->pluck('template_id')
@@ -75,7 +75,7 @@ class DocumentResource extends Resource
                         $livewire->dispatch('template-changed');
                     })
                     ->disabled(fn($record) => $record !== null)
-                    ->helperText('Only templates with published workflow for your department/role are shown'),
+                    ->helperText('Only templates with published workflow for your division/role are shown'),
 
                 Forms\Components\TextInput::make('title')
                     ->required()
@@ -215,8 +215,8 @@ window.runCalculations_' . $formId . ' = function() {
                 Forms\Components\Hidden::make('creator_id')
                     ->default(auth()->id()),
 
-                Forms\Components\Hidden::make('department_id')
-                    ->default(auth()->user()->department_id),
+                Forms\Components\Hidden::make('division_id')
+                    ->default(auth()->user()->division_id),
             ]);
     }
 
@@ -228,8 +228,8 @@ window.runCalculations_' . $formId . ' = function() {
                 Tables\Columns\TextColumn::make('creator.name')
                     ->label('Creator')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('department.name')
-                    ->label('Department')
+                Tables\Columns\TextColumn::make('division.name')
+                    ->label('Division')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
